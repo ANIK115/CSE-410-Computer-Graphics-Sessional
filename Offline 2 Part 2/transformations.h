@@ -321,3 +321,30 @@ public:
     }
 
 };
+
+
+static unsigned long int g_seed = 1;
+inline int random()
+{
+ g_seed = (214013 * g_seed + 2531011);
+ return (g_seed >> 16) & 0x7FFF;
+}
+
+
+class Triangle {
+public:
+    vector<PointVector> points;
+    int rgb_color[3];
+
+    Triangle(PointVector a, PointVector b, PointVector c)
+    {
+        points.push_back(a);
+        points.push_back(b);
+        points.push_back(c);
+        rgb_color[0] = random() % 256;
+        rgb_color[1] = random() % 256;
+        rgb_color[2] = random() % 256;
+    }
+};
+
+
