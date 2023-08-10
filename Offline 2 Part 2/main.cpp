@@ -15,13 +15,15 @@ void set_color(bitmap_image &image, int screen_width, int screen_height, int r, 
 int screen_width, screen_height;
 double min_x, min_y, max_x, max_y;
 double left_limit = -1, right_limit = 1, bottom_limit = -1, top_limit = 1;
-double z_max = 2.0;
-double z_min = -2.0;
+double z_max = 1.0;
+double z_min = -1.0;
 
 void set_min_max(Triangle &t)
 {
     min_x = min(t.points[0].point_vector[0], min(t.points[1].point_vector[0], t.points[2].point_vector[0]));
     min_y = min(t.points[0].point_vector[1], min(t.points[1].point_vector[1], t.points[2].point_vector[1]));
+    max_x = max(t.points[0].point_vector[0], max(t.points[1].point_vector[0], t.points[2].point_vector[0]));
+    max_y = max(t.points[0].point_vector[1], max(t.points[1].point_vector[1], t.points[2].point_vector[1]));
 }
 
 void clip_triangle(Triangle &t, double left_x, double right_x, double bottom_y, double top_y)
@@ -39,7 +41,7 @@ double clip_x(double x)
 }
 
 
-void calculate_z_buffer(vector<Triangle> &triangles)
+void calculate_z_buffer(vector<Triangle> &triangles, vector<vector<double>> &z_buffer, bitmap_image &image)
 {
     double dx,dy;
     dx = (right_limit - left_limit) / screen_width;
@@ -55,16 +57,24 @@ void calculate_z_buffer(vector<Triangle> &triangles)
     {
         set_min_max(triangles[i]);
         clip_triangle(triangles[i], left_x, right_x, bottom_y, top_y);
+    
+        // cout << "Min x: " << min_x << endl;
+        // cout << "Min y: " << min_y << endl;
+        // cout << "Max x: " << max_x << endl;
+        // cout << "Max y: " << max_y << endl;
+        // cout << endl;
 
-        double top_scanline = max_y;
-        double bottom_scanline = min_y;
-        int rows = (top_scanline - bottom_scanline) / dy;
         Triangle triangle = triangles[i];
+        // cout << "Triangle " << i+1 << endl;
+        int start_y = round((top_y-min_y)/dy);
+        int end_y = round((top_y-max_y)/dy);
+        double top_scanline = top_y;
 
-        for(int j=0; j<rows; j++)
+        for(int j=start_y; j>= end_y; j--)
         {
             double scan_y = top_scanline - (j * dy);
-            vector<double> intersections_x, intersections_z, clipped_x;
+            vector<double> intersections_x(2), intersections_z(2), clipped_x(2);
+            int index = 0;
 
             for(int k=0; k<3; k++)
             {
@@ -87,23 +97,60 @@ void calculate_z_buffer(vector<Triangle> &triangles)
                 {
                     x = x1 + ((scan_y - y1) * (x2 - x1)) / (y2 - y1);
                     z = z1 + ((scan_y - y1) * (z2 - z1)) / (y2 - y1);
-                    intersections_x.push_back(x);
-                    intersections_z.push_back(z);
-                    clipped_x.push_back(clip_x(x));
+                    intersections_x[index] = x;
+                    intersections_z[index] = z;
+                    clipped_x[index] = clip_x(x);
+                    index++;
                 }
             }
 
-            intersections_z[0] = intersections_z[1]+ (intersections_z[1] - intersections_z[0]) * (clipped_x[0] - intersections_x[1]) / (intersections_x[1] - intersections_x[0]); 
-            intersections_z[1] = intersections_z[1]+ (intersections_z[1] - intersections_z[0]) * (clipped_x[1] - intersections_x[1]) / (intersections_x[1] - intersections_x[0]); 
+            intersections_z[0] = intersections_z[1]- (intersections_z[1] - intersections_z[0]) * (intersections_x[1]-clipped_x[0]) / (intersections_x[1] - intersections_x[0]); 
+            intersections_z[1] = intersections_z[1]- (intersections_z[1] - intersections_z[0]) * (intersections_x[1]-clipped_x[1]) / (intersections_x[1] - intersections_x[0]); 
+            double xa = clipped_x[0];
+            double xb = clipped_x[1];
+            double za = intersections_z[0];
+            double zb = intersections_z[1];
 
-            double xa = min(clipped_x[0], clipped_x[1]);
-            double xb = max(clipped_x[0], clipped_x[1]);
-            double za = min(intersections_z[0], intersections_z[1]);
-            double zb = max(intersections_z[0], intersections_z[1]);
+            if(xb < xa)
+            {
+                swap(xa, xb);
+                swap(za, zb);
+            }
 
+            int start = round((xa - left_x) / dx);
+            int end = round((xb - left_x) / dx);
+
+            for(int k=start; k<=end; k++)
+            {
+                double x = left_x + (k * dx);
+                double z = zb- (zb - za) * (xb-x) / (xb - xa);
+                if(z >= z_min && z <= z_max && z < z_buffer[j][k])
+                {
+                    z_buffer[j][k] = z;
+                    image.set_pixel(k, j, triangle.rgb_color[0], triangle.rgb_color[1], triangle.rgb_color[2]);
+                }
+            }
         }
 
     }
+
+    ofstream fout("z_buffer.txt");
+    for(int i=0; i<screen_height; i++)
+    {
+        for(int j=0; j<screen_width; j++)
+        {
+            if(z_buffer[i][j] < z_max)
+            {
+                fout << setprecision(6) << fixed << z_buffer[i][j] << "\t";
+            }
+        }
+        fout << endl;
+    }
+    fout.close();
+    image.save_image("out.bmp");
+
+    z_buffer.clear();
+    z_buffer.shrink_to_fit();
 }
 
 
@@ -279,10 +326,7 @@ int main()
         triangles.push_back(t);
     }
 
-    calculate_z_buffer(triangles);
-
-
-
-
+    calculate_z_buffer(triangles, z_buffer, image);
+    fin.close();
     return 0;
 }
