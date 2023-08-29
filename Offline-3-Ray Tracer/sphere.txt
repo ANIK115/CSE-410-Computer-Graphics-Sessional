@@ -1,0 +1,46 @@
+int stacks = 5;
+        int slices = 20;
+
+        PointVector points[100][100];
+        int i, j;
+        double h, r;
+
+        //generate points
+        for(int i=0; i<=stacks; i++)
+        {
+            h = length * sin(((double)i/(double)stacks)*(PI/2));
+            r = length * cos(((double)i/(double)stacks)*(PI/2));
+            for(int j=0; j<=slices; j++)
+            {
+                points[i][j].point_vector[0] = r * cos(((double)j/(double)slices)*2*PI);
+                points[i][j].point_vector[1] = r * sin(((double)j/(double)slices)*2*PI);
+                points[i][j].point_vector[2] = h;
+                points[i][j].point_vector[3] = 1;
+            }
+        }
+
+        //draw quads using generated points
+        for(int i=0; i<stacks; i++)
+        {
+            glPushMatrix();
+            glTranslatef(reference_point.point_vector[0], reference_point.point_vector[1], reference_point.point_vector[2]);
+            glColor3f(color.red, color.green, color.blue);
+
+            for(int j=0; j<slices; j++)
+            {
+                glBegin(GL_QUADS);
+                {
+                    glVertex3f(points[i][j].point_vector[0], points[i][j].point_vector[1], points[i][j].point_vector[2]);
+                    glVertex3f(points[i][j+1].point_vector[0], points[i][j+1].point_vector[1], points[i][j+1].point_vector[2]);
+                    glVertex3f(points[i+1][j+1].point_vector[0], points[i+1][j+1].point_vector[1], points[i+1][j+1].point_vector[2]);
+                    glVertex3f(points[i+1][j].point_vector[0], points[i+1][j].point_vector[1], points[i+1][j].point_vector[2]);
+
+                    glVertex3f(points[i][j].point_vector[0], points[i][j].point_vector[1], -points[i][j].point_vector[2]);
+                    glVertex3f(points[i][j+1].point_vector[0], points[i][j+1].point_vector[1], -points[i][j+1].point_vector[2]);
+                    glVertex3f(points[i+1][j+1].point_vector[0], points[i+1][j+1].point_vector[1], -points[i+1][j+1].point_vector[2]);
+                    glVertex3f(points[i+1][j].point_vector[0], points[i+1][j].point_vector[1], -points[i+1][j].point_vector[2]);
+                }
+                glEnd();
+            }
+            glPopMatrix();
+        }
