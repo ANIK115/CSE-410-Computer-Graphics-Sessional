@@ -2,9 +2,11 @@
 #include "bitmap_image.hpp"
 #include <GL/glut.h>
 #include <cmath>
+#include <math.h>
 using namespace std;
 
 #define PI acos(-1.0)*1.0
+#define M_PI		3.14159265358979323846
 
 //create 4 Enums for different types of co-efficients and initialize them
 enum
@@ -603,7 +605,7 @@ public:
         ray.direction.normalizePoints();
         double dotProduct = normal * ray.direction;
 
-        if(dotProduct <= 1e-5)
+        if(-1e-5 <= dotProduct && dotProduct <= 1e-5)
             return -1;
         double t = -(normal * ray.origin) / dotProduct;        
         return t;

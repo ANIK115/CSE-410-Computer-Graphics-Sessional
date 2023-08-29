@@ -290,37 +290,37 @@ void specialKeyListener(int key, int x,int y)
 {
 	switch(key){
 		case GLUT_KEY_UP:		//down arrow key
-			pos.x+=l.x;
-			pos.y+=l.y;
-			pos.z+=l.z;
+			pos.x+=l.x*2;
+			pos.y+=l.y*2;
+			pos.z+=l.z*2;
 
 			break;
 		case GLUT_KEY_DOWN:		// up arrow key
-			pos.x-=l.x;
-			pos.y-=l.y;
-			pos.z-=l.z;
+			pos.x-=l.x*2;
+			pos.y-=l.y*2;
+			pos.z-=l.z*2;
 			break;
 
 		case GLUT_KEY_RIGHT:
-			pos.x+=r.x;
-			pos.y+=r.y;
-			pos.z+=r.z;
+			pos.x+=r.x*2;
+			pos.y+=r.y*2;
+			pos.z+=r.z*2;
 			break;
 		case GLUT_KEY_LEFT :
-			pos.x-=r.x;
-			pos.y-=r.y;
-			pos.z-=r.z;
+			pos.x-=r.x*2;
+			pos.y-=r.y*2;
+			pos.z-=r.z*2;
 			break;
 
 		case GLUT_KEY_PAGE_UP:
-		    pos.x+=u.x;
-			pos.y+=u.y;
-			pos.z+=u.z;
+		    pos.x+=u.x*2;
+			pos.y+=u.y*2;
+			pos.z+=u.z*2;
 			break;
 		case GLUT_KEY_PAGE_DOWN:
-            pos.x-=u.x;
-			pos.y-=u.y;
-			pos.z-=u.z;
+            pos.x-=u.x*2;
+			pos.y-=u.y*2;
+			pos.z-=u.z*2;
 			break;
 
 		case GLUT_KEY_INSERT:
@@ -361,7 +361,6 @@ void loadData()
     double co_efficients[] = {floor_ambient, floor_diffuse, 0.0, floor_reflection};
     floor->setCoEfficients(co_efficients);
     floor->setShininess(1);
-
 
     int numberOfObjects;
     in >> numberOfObjects;
@@ -451,6 +450,7 @@ void loadData()
         
         
     }
+    
     objects.push_back(floor);
 
     int numberOfNormalLights;
