@@ -21,11 +21,12 @@ int countIncreaseZ = 0;
 
 double nearDistance, farDistance, fovY, fovX, aspectRatio;
 int levelOfRecursion;
-int imageSize;
+int imageSize, imageCount=0 ;
 double screenWidth, screenHeight;
+bitmap_image image;
 
 vector<Object*> objects;
-vector<PointLight*> pointLights;
+vector<PointLight*> point_lights;
 vector<SpotLight*> spotLights;
 
 
@@ -65,10 +66,10 @@ void display()
     glLoadIdentity();           // Reset the model-view matrix
 
 
-    // cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
-    // cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
-    // cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
-    // cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
+    cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
+    cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
+    cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
+    cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
 
     gluLookAt(pos.x,pos.y,pos.z,
               pos.x+l.x,pos.y+l.y,pos.z+l.z,
@@ -120,12 +121,85 @@ void cross_product(point &u, point &l, point &r)
     r.y=l.x*u.z - u.x*l.z;
     r.z=u.x*l.y - l.x*u.y;
 }
+
+void capture()
+{
+    double t, t_min;
+    int nearestObjectIndex;
+    for(int i=0; i<imageSize; i++)
+    {
+        for(int j=0; j<imageSize; j++)
+        {
+            image.set_pixel(i, j, 0, 0, 0);
+        }
+    }
+
+
+    double planeDistance = (screenHeight/2.0) / tan((pi * fovY)/360.0 );
+    point topLeft = pos + l*planeDistance - r*(screenWidth/2.0) + u*(screenHeight/2.0);
+
+    double du = screenWidth / (imageSize * 1.0);
+    double dv = screenHeight / (imageSize * 1.0);
+
+    point middle = topLeft + r*(0.5*du) - u*(0.5*dv);
+    PointVector camera_position(pos.x, pos.y, pos.z);
+
+    for(int i=0; i<imageSize; i++)
+    {
+        for(int j=0; j<imageSize; j++)
+        {
+            point currentPixel = middle + r*(i*du) - u*(j*dv);
+            PointVector pixel(currentPixel.x, currentPixel.y, currentPixel.z);
+            Ray ray(camera_position, pixel-camera_position);
+            ray.direction.normalizePoints();
+            Color color;
+            t_min = -1;
+            nearestObjectIndex = -1;
+
+            for(int k=0; k<objects.size(); k++)
+            {
+                t = objects[k]->intersect(ray, color, 0);
+                if(t > 0 && (nearestObjectIndex == -1 || t < t_min))
+                {
+                    t_min = t;
+                    nearestObjectIndex = k;
+                }
+            }
+
+            if(nearestObjectIndex != -1)
+            {
+                color = Color(0, 0, 0);
+                double t = objects[nearestObjectIndex]->intersect(ray, color, 0);
+                
+
+                if(color.red > 1) color.red = 1;
+                if(color.green > 1) color.green = 1;
+                if(color.blue > 1) color.blue = 1;
+
+                if(color.red < 0) color.red = 0;
+                if(color.green < 0) color.green = 0;
+                if(color.blue < 0) color.blue = 0;
+
+                image.set_pixel(i, j, color.red*255, color.green*255, color.blue*255);
+
+
+            }
+
+        }
+    }
+    imageCount++;
+    image.save_image("output_"+to_string(imageCount)+".bmp");
+    cout << "Image saved" << endl;
+
+}
 /* Callback handler for normal-key event */
 void keyboardListener(unsigned char key, int xx,int yy){
     double rate = 0.01;
     double clockwise_rotation_angle = 10.0;
 	switch(key){
-
+        case '0':
+            capture();
+            break;
 		case '2':
 			r.x = r.x*cos(rate)+l.x*sin(rate);
 			r.y = r.y*cos(rate)+l.y*sin(rate);
@@ -265,8 +339,7 @@ void loadData()
 
     in >> levelOfRecursion >> imageSize;
 
-    screenHeight = 2 * nearDistance * tan(fovY/2);
-    screenWidth = 2 * nearDistance * tan(fovX/2);
+    screenHeight = screenWidth = imageSize;
     
     double floorWidth;
     in >> floorWidth;
@@ -311,19 +384,18 @@ void loadData()
     {
         PointLight *pointLight = new PointLight();
         in >> *pointLight;
-        pointLights.push_back(pointLight);
+        point_lights.push_back(pointLight);
     }
 
 }
 void initialization()
 {
 
-    pos.x = 120; pos.y = 25, pos.z = 0;
+    pos.x = 175; pos.y = 60, pos.z = 0;
     l.x = 0-1; l.y = 0; l.z = 0;
     r.x = 0; r.y = 0; r.z = -1;
     u.x = 0; u.y = 1; u.z = 0;
 
-    loadData();
     glClearColor(0,0,0,0);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -342,8 +414,10 @@ void initGL()
 /* Main function: GLUT runs as a console application starting at main()  */
 int main(int argc, char **argv)
 {
+    loadData();
+    image = bitmap_image(imageSize, imageSize);
     glutInit(&argc, argv);                                    // Initialize GLUT
-    glutInitWindowSize(640, 640);                             // Set the window's initial width & height
+    glutInitWindowSize(screenWidth, screenHeight);            // Set the window's initial width & height
     glutInitWindowPosition(50, 50);                           // Position the window's initial top-left corner
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGB); // Depth, Double buffer, RGB color
     glutCreateWindow("Ray Tracing");                          // Create a window with the given title

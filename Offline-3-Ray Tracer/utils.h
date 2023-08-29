@@ -371,7 +371,11 @@ public:
         if(t < 0)
             return -1;
         //When level is 0, the purpose of the intersect() method is to determine the nearest object only. No color computation is required then
-        if(level == 0) return t;
+        if(level == 0) 
+        {
+            color = getColor(ray.origin + ray.direction * t);
+            return t;
+        }
 
         //level > 0 and we need to do some color computation
         PointVector intersection_point = ray.origin + ray.direction * t;
@@ -414,11 +418,11 @@ public:
 
             double lambert_value = max(0.0, normal.direction * incidentLightRay.direction);
 
-            return 0;
+            
 
         }
 
-        
+        return 0;
     }
 
     virtual Color getColor(PointVector intersection_point)
@@ -433,6 +437,7 @@ class Floor : public Object
 public:
     int number_of_tiles;
     int changeStartX, changeFinishX, changeStartZ, changeFinishZ;
+    int startX, finishX, startZ, finishZ;
     PointVector new_reference_point;
     Floor()
     {
@@ -444,7 +449,7 @@ public:
     {
         this->reference_point = reference_point;
         this->width = shellWidth;
-        number_of_tiles = 100;
+        number_of_tiles = 1000;
         type = FLOOR;
         changeStartX = changeStartZ = changeFinishX = changeFinishZ = 0;
     }
@@ -477,13 +482,9 @@ public:
 
     virtual void draw()
     {
-        int startX = reference_point.point_vector[0]-1000+changeStartX;
-        int finishX = reference_point.point_vector[0]+1000+changeFinishX;
-        number_of_tiles = (finishX - startX) / width;
-        // int startY = reference_point.point_vector[1]-1000;
-        // int finishY = reference_point.point_vector[1]+1000;
-        int startZ = reference_point.point_vector[2]-1000+changeStartZ;
-        int finishZ = reference_point.point_vector[2]+1000+changeFinishZ;
+        startX = reference_point.point_vector[0]-50*width;
+        number_of_tiles = 100;
+        startZ = reference_point.point_vector[2]-50*width;
         for(int i=0; i<number_of_tiles; i++)
         {
             for(int j=0; j<number_of_tiles; j++)
@@ -512,37 +513,35 @@ public:
 
     virtual double find_intersection(Ray ray)
     {
-        double t = -1.0 * ray.origin.point_vector[1] / ray.direction.point_vector[1];
+        PointVector normal = PointVector(0.0, 1.0, 0.0);
+        ray.direction.normalizePoints();
+        double dotProduct = normal * ray.direction;
+
+        if(dotProduct == 0.0)
+            return -1;
+        double t = -(normal * ray.origin) / dotProduct;        
         return t;
     }
 
     virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
     {
-        PointVector normal = PointVector(0, 1, 0);
-        normal.normalizePoints();
-        Ray normal_ray = Ray(intersection_point, normal);
-        return normal_ray;
+        if(incident_ray.direction.point_vector[2] > 0)
+        {
+            return Ray(intersection_point, PointVector(0.0, 1.0, 0.0));
+        }
+        else
+        {
+            return Ray(intersection_point, PointVector(0.0, -1.0, 0.0));
+        }
     }
 
-    virtual double intersect(Ray ray, Color &color, int level)
-    {
-        double t = find_intersection(ray);
-        if (t > 0)
-        {
-            if (level == 0)
-            {
-                color = this->color;
-            }
-            return t;
-        }
-        return -1;
-    }
 
     virtual Color getColor(PointVector intersection_point)
     {
-        int x = (intersection_point.point_vector[0] - reference_point.point_vector[0]) / width;
-        int z = (intersection_point.point_vector[2] - reference_point.point_vector[2]) / width;
-        if ((x + z) % 2 == 0)
+        int x = (intersection_point.point_vector[0]- startX) / width;
+        int z = (intersection_point.point_vector[2]- startZ) / width;
+        
+        if((x+z)%2 == 0)
             return Color(1.0, 1.0, 1.0);
         else
             return Color(0.0, 0.0, 0.0);
