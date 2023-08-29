@@ -66,10 +66,10 @@ void display()
     glLoadIdentity();           // Reset the model-view matrix
 
 
-    cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
-    cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
-    cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
-    cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
+    // cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
+    // cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
+    // cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
+    // cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
 
     gluLookAt(pos.x,pos.y,pos.z,
               pos.x+l.x,pos.y+l.y,pos.z+l.z,
@@ -80,8 +80,15 @@ void display()
     if (isAxes)
         drawAxes();
 
+
     for(int i=0; i<objects.size(); i++)
     {
+        //to handle infinite floor
+        if(objects[i]->getType()==FLOOR)
+        {
+            Floor *floor = (Floor*)objects[i];
+            floor->setNewReferencePoint(PointVector(pos.x, 0, pos.z));
+        }
         objects[i]->draw();
     }
 
@@ -333,7 +340,7 @@ void specialKeyListener(int key, int x,int y)
 
 void loadData()
 {
-    ifstream in("scene.txt");
+    ifstream in("scene2.txt");
     in >> nearDistance >> farDistance >> fovY >> aspectRatio;
     fovX = fovY * aspectRatio;
 
@@ -354,7 +361,7 @@ void loadData()
     double co_efficients[] = {floor_ambient, floor_diffuse, 0.0, floor_reflection};
     floor->setCoEfficients(co_efficients);
     floor->setShininess(1);
-    objects.push_back(floor);
+
 
     int numberOfObjects;
     in >> numberOfObjects;
@@ -370,12 +377,81 @@ void loadData()
         {
             object = new Sphere();
             in >> *((Sphere*)object);
-        }else
+            objects.push_back(object);
+        }else if(objectType == "pyramid")
+        {
+            PointVector basePoint;
+            double width, height;
+            in >> basePoint >> width >> height;
+
+            object = new Pyramid(basePoint, width, height);
+            Pyramid *pyramid = (Pyramid*)object;
+            Color color;
+            in >> color.red >> color.green >> color.blue;
+            pyramid->setColor(color);
+            double co_efficients[4];
+            in >> co_efficients[0] >> co_efficients[1] >> co_efficients[2] >> co_efficients[3];
+            pyramid->setCoEfficients(co_efficients);
+            double shininess;
+            in >> shininess;
+            pyramid->setShininess(shininess);
+
+            for(int k=0; k<4; k++)
+            {
+                Object *triangle = new Triangle(pyramid->triangles[k]);
+                triangle->setColor(color);
+                triangle->setCoEfficients(co_efficients);
+                triangle->setShininess(shininess);
+                objects.push_back(triangle);
+            }
+
+            for(int k=0; k<2; k++)
+            {
+                Object *triangle = new Triangle(pyramid->square.triangles[k]);
+                triangle->setColor(color);
+                triangle->setCoEfficients(co_efficients);
+                triangle->setShininess(shininess);
+                objects.push_back(triangle);
+            }
+
+        }else if(objectType == "cube")
+        {
+            PointVector bottom_lower_left;
+            double side;
+            in >> bottom_lower_left >> side;
+            object = new Cube(bottom_lower_left, side);
+            
+            Cube *cube = (Cube*)object;
+            Color color;
+            in >> color.red >> color.green >> color.blue;
+            cube->setColor(color);
+            double co_efficients[4];
+            in >> co_efficients[0] >> co_efficients[1] >> co_efficients[2] >> co_efficients[3];
+            cube->setCoEfficients(co_efficients);
+            double shininess;
+            in >> shininess;
+            cube->setShininess(shininess);
+
+            cube->createTriangles();
+
+            for(int k=0; k<12; k++)
+            {
+                Object *triangle = new Triangle(cube->triangles[k]);
+                triangle->setColor(color);
+                triangle->setCoEfficients(co_efficients);
+                triangle->setShininess(shininess);
+                objects.push_back(triangle);
+            }
+            
+        }
+        else
         {
             cout << "Unknown object type: " << objectType << endl;
         }
-        objects.push_back(object);
+        
+        
     }
+    objects.push_back(floor);
 
     int numberOfNormalLights;
     in >> numberOfNormalLights;

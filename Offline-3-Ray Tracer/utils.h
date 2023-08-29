@@ -176,6 +176,101 @@ PointVector cross_product(PointVector p, PointVector q)
 }
 
 
+class Matrix
+{
+
+public:
+    int dimension;
+    vector<vector<double>> matrix;
+
+    Matrix()
+    {
+        dimension = 4;
+        matrix.resize(dimension);
+        for (int i = 0; i < dimension; i++)
+            matrix[i].resize(dimension);
+    }
+
+    Matrix(int dim)
+    {
+        this->dimension = dim;
+        matrix.resize(dimension);
+        for (int i = 0; i < dimension; i++)
+            matrix[i].resize(dimension);
+    }
+
+    void createIdentityMatrix()
+    {
+        for (int i = 0; i < dimension; i++)
+        {
+            matrix[i][i] = 1.0;
+        }
+    }
+
+    /*Overloading * for matrix multiplication*/
+    Matrix operator*(Matrix const &B)
+    {
+        Matrix result(this->dimension);
+        for (int i = 0; i < dimension; i++)
+        {
+            for (int j = 0; j < dimension; j++)
+            {
+                double sum = 0.0;
+                for (int k = 0; k < dimension; k++)
+                {
+                    sum += this->matrix[i][k] * B.matrix[k][j];
+                }
+                result.matrix[i][j] = sum;
+            }
+        }
+        return result;
+    }
+
+    /*Overloading * for n*n matrix and n point-vector*/
+    PointVector operator*(PointVector const &p)
+    {
+        PointVector transformed_point;
+        for(int i=0; i<dimension; i++)
+        {
+            transformed_point.point_vector[i] = 0;
+            for(int j=0; j<dimension; j++)
+            {
+                transformed_point.point_vector[i] += matrix[i][j] * p.point_vector[j];
+            }
+        }
+        transformed_point.makeHomogeneous();
+        return transformed_point;
+    }
+    double determinant()
+    {
+        double det = 0.0;
+        if (dimension == 1)
+            return matrix[0][0];
+        else if (dimension == 2)
+            return matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
+        else
+        {
+            for (int i = 0; i < dimension; i++)
+            {
+                Matrix temp(dimension - 1);
+                for (int j = 1; j < dimension; j++)
+                {
+                    for (int k = 0; k < dimension; k++)
+                    {
+                        if (k < i)
+                            temp.matrix[j - 1][k] = matrix[j][k];
+                        else if (k > i)
+                            temp.matrix[j - 1][k - 1] = matrix[j][k];
+                    }
+                }
+                det += matrix[0][i] * pow(-1, i) * temp.determinant();
+            }
+            return det;
+        }
+    }
+};
+
+
 class Color
 {
 public:
@@ -344,7 +439,6 @@ public:
         return type;
     }
     
-    
     void setColor(Color color)
     {
         this->color = color;
@@ -435,46 +529,34 @@ public:
 class Floor : public Object
 {
 public:
-    int number_of_tiles;
-    int changeStartX, changeFinishX, changeStartZ, changeFinishZ;
-    int startX, finishX, startZ, finishZ;
+    int number_of_tiles, number_of_tiles_in_X, number_of_tiles_in_Z;
+    int startX, finishX, startZ, finishZ, diffX, diffZ;
     PointVector new_reference_point;
     Floor()
     {
         number_of_tiles = 100;
         type = FLOOR;
+        number_of_tiles_in_X = number_of_tiles_in_Z = 100;
+        diffX = diffZ = 0;
     }
 
     Floor(int shellWidth, PointVector reference_point)
     {
         this->reference_point = reference_point;
         this->width = shellWidth;
-        number_of_tiles = 1000;
+        number_of_tiles = number_of_tiles_in_X = number_of_tiles_in_Z = 100;
         type = FLOOR;
-        changeStartX = changeStartZ = changeFinishX = changeFinishZ = 0;
+        diffX = diffZ = 0;
     }
 
-    void decreaseChangeX()
+    void setReferencePoint(PointVector reference_point)
     {
-        changeStartX -= width;
-        changeFinishX -= width;
-    }
-    void increaseChangeX()
-    {
-        changeStartX += width;
-        changeFinishX += width;
+        this->reference_point = reference_point;
     }
 
-    void decreaseChangeZ()
+    void setNewReferencePoint(PointVector new_reference_point)
     {
-        changeStartZ -= width;
-        changeFinishZ -= width;
-    }
-
-    void increaseChangeZ()
-    {
-        changeStartZ += width;
-        changeFinishZ += width;
+        this->new_reference_point = new_reference_point;
     }
 
 
@@ -482,9 +564,13 @@ public:
 
     virtual void draw()
     {
-        startX = reference_point.point_vector[0]-50*width;
         number_of_tiles = 100;
-        startZ = reference_point.point_vector[2]-50*width;
+        diffX = (new_reference_point.point_vector[0] - reference_point.point_vector[0]) / width;
+        diffZ = (new_reference_point.point_vector[2] - reference_point.point_vector[2]) / width;
+        
+        startX = reference_point.point_vector[0]-50*width - 2*diffX*width;
+        
+        startZ = reference_point.point_vector[2]-50*width - 2*diffZ*width;
         for(int i=0; i<number_of_tiles; i++)
         {
             for(int j=0; j<number_of_tiles; j++)
@@ -517,7 +603,7 @@ public:
         ray.direction.normalizePoints();
         double dotProduct = normal * ray.direction;
 
-        if(dotProduct == 0.0)
+        if(dotProduct <= 1e-5)
             return -1;
         double t = -(normal * ray.origin) / dotProduct;        
         return t;
@@ -637,11 +723,432 @@ public:
 
     friend std::istream& operator>>(std::istream& in, Sphere& s)
     {
-    in >> s.reference_point >> s.length; // center and radius
-    in >> s.color.red >> s.color.green >> s.color.blue; // color
-    for(int i = 0; i < 4; i++) in >> s.co_efficients[i];
-    in >> s.shininess;
-    return in;
+        in >> s.reference_point >> s.length; // center and radius
+        in >> s.color.red >> s.color.green >> s.color.blue; // color
+        for(int i = 0; i < 4; i++) in >> s.co_efficients[i];
+        in >> s.shininess;
+        return in;
     }
 
+};
+
+class Triangle : public Object
+{
+public:
+    PointVector a, b, c;
+
+    Triangle()
+    {
+        a = PointVector();
+        b = PointVector();
+        c = PointVector();
+        type = PYRAMID;
+    }
+
+    Triangle(PointVector a, PointVector b, PointVector c, string type)
+    {
+        this->a = a;
+        this->b = b;
+        this->c = c;
+        type == "pyramid" ? this->type = PYRAMID : this->type = CUBE;
+    }
+
+    void drawTriangle()
+    {
+        glColor3f(color.red, color.green, color.blue);
+        glBegin(GL_TRIANGLES);
+        {
+            glVertex3f(a.point_vector[0], a.point_vector[1], a.point_vector[2]);
+            glVertex3f(b.point_vector[0], b.point_vector[1], b.point_vector[2]);
+            glVertex3f(c.point_vector[0], c.point_vector[1], c.point_vector[2]);
+        }
+        glEnd();
+    }
+
+    virtual void draw()
+    {
+        drawTriangle();
+    }
+
+    virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
+    {
+        PointVector normal = cross_product(b - a, c - a);
+        normal.normalizePoints();
+        
+        incident_ray.direction * normal < 0 ? normal = normal * -1 : normal = normal;
+        return Ray(intersection_point, normal);
+    }
+
+    virtual double find_intersection(Ray ray)
+    {
+        ray.direction.normalizePoints();
+        Matrix beta(3);
+        Matrix gamma(3);
+        Matrix t(3);
+        Matrix A(3);
+
+        A.matrix[0][0] = a.point_vector[0] - b.point_vector[0];
+        A.matrix[0][1] = a.point_vector[0] - c.point_vector[0];
+        A.matrix[0][2] = ray.direction.point_vector[0];
+        A.matrix[1][0] = a.point_vector[1] - b.point_vector[1];
+        A.matrix[1][1] = a.point_vector[1] - c.point_vector[1];
+        A.matrix[1][2] = ray.direction.point_vector[1];
+        A.matrix[2][0] = a.point_vector[2] - b.point_vector[2];
+        A.matrix[2][1] = a.point_vector[2] - c.point_vector[2];
+        A.matrix[2][2] = ray.direction.point_vector[2];
+
+
+        beta.matrix[0][0] = a.point_vector[0] - ray.origin.point_vector[0];
+        beta.matrix[0][1] = a.point_vector[0] - c.point_vector[0];
+        beta.matrix[0][2] = ray.direction.point_vector[0];
+        beta.matrix[1][0] = a.point_vector[1] - ray.origin.point_vector[1];
+        beta.matrix[1][1] = a.point_vector[1] - c.point_vector[1];
+        beta.matrix[1][2] = ray.direction.point_vector[1];
+        beta.matrix[2][0] = a.point_vector[2] - ray.origin.point_vector[2];
+        beta.matrix[2][1] = a.point_vector[2] - c.point_vector[2];
+        beta.matrix[2][2] = ray.direction.point_vector[2];
+
+
+        gamma.matrix[0][0] = a.point_vector[0] - b.point_vector[0];
+        gamma.matrix[0][1] = a.point_vector[0] - ray.origin.point_vector[0];
+        gamma.matrix[0][2] = ray.direction.point_vector[0];
+        gamma.matrix[1][0] = a.point_vector[1] - b.point_vector[1];
+        gamma.matrix[1][1] = a.point_vector[1] - ray.origin.point_vector[1];
+        gamma.matrix[1][2] = ray.direction.point_vector[1];
+        gamma.matrix[2][0] = a.point_vector[2] - b.point_vector[2];
+        gamma.matrix[2][1] = a.point_vector[2] - ray.origin.point_vector[2];
+        gamma.matrix[2][2] = ray.direction.point_vector[2];
+
+        t.matrix[0][0] = a.point_vector[0] - b.point_vector[0];
+        t.matrix[0][1] = a.point_vector[0] - c.point_vector[0];
+        t.matrix[0][2] = a.point_vector[0] - ray.origin.point_vector[0];
+        t.matrix[1][0] = a.point_vector[1] - b.point_vector[1];
+        t.matrix[1][1] = a.point_vector[1] - c.point_vector[1];
+        t.matrix[1][2] = a.point_vector[1] - ray.origin.point_vector[1];
+        t.matrix[2][0] = a.point_vector[2] - b.point_vector[2];
+        t.matrix[2][1] = a.point_vector[2] - c.point_vector[2];
+        t.matrix[2][2] = a.point_vector[2] - ray.origin.point_vector[2];
+
+        double detA = A.determinant();
+        double betaValue = beta.determinant() / detA;
+        double gammaValue = gamma.determinant() / detA;
+        double tValue = t.determinant() / detA;
+
+        if (betaValue > 0 && gammaValue > 0 && betaValue + gammaValue < 1 && tValue > 0)
+            return tValue;
+        else
+            return -1;
+    }
+
+};
+
+class Square : public Object
+{
+public:
+    Triangle triangles[2];
+    Square()
+    {
+        triangles[0] = Triangle();
+        triangles[1] = Triangle();
+        type = CUBE;
+    }
+
+    Square(PointVector a, PointVector b, PointVector c, PointVector d, string type)
+    {
+        triangles[0] = Triangle(a, b, c, type);
+        triangles[1] = Triangle(a, c, d, type);
+        type == "pyramid" ? this->type = PYRAMID : this->type = CUBE;
+    }
+
+    void setColor(Color color)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            triangles[i].setColor(color);
+        }
+    }
+
+    void drawSquare()
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            triangles[i].drawTriangle();
+        }
+    }
+
+    virtual void draw()
+    {
+        drawSquare();
+    }
+
+    virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
+    {
+        //check if the intersection point is on the first triangle or the second triangle
+        PointVector normal1 = cross_product(triangles[0].b - triangles[0].a, triangles[0].c - triangles[0].a);
+        PointVector normal2 = cross_product(triangles[1].b - triangles[1].a, triangles[1].c - triangles[1].a);
+        normal1.normalizePoints();
+        normal2.normalizePoints();
+        if (abs((intersection_point - triangles[0].a) * normal1) < 1e-5)
+        {
+            incident_ray.direction * normal1 < 0 ? normal1 = normal1 * -1 : normal1 = normal1;
+            return Ray(intersection_point, normal1);
+        }
+        else
+        {
+            incident_ray.direction * normal2 < 0 ? normal2 = normal2 * -1 : normal2 = normal2;
+            return Ray(intersection_point, normal2);
+        }
+    }
+
+    virtual double find_intersection(Ray ray)
+    {
+        double t1 = triangles[0].find_intersection(ray);
+        double t2 = triangles[1].find_intersection(ray);
+        if (t1 < 0 && t2 < 0)
+            return -1;
+        else if (t1 < 0)
+            return t2;
+        else if (t2 < 0)
+            return t1;
+        else
+            return min(t1, t2);
+    }
+
+
+};
+
+class Pyramid : public Object
+{
+public:
+    Triangle triangles[4];
+    Square square;
+
+
+    Pyramid()
+    {
+        triangles[0] = Triangle();
+        triangles[1] = Triangle();
+        triangles[2] = Triangle();
+        triangles[3] = Triangle();
+        square = Square();
+        type = PYRAMID;
+    }
+
+    Pyramid(PointVector basePoint, double width, double height)
+    {
+        //The base of the pyramid is square and it is in ZX plane.
+        //The base is centered at basePoint
+        this->width = width;
+        this->height = height;
+        type = PYRAMID;
+
+        //calculate the corner points of the Pyramid
+        PointVector a = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] - width / 2.0);
+        PointVector b = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] - width / 2.0);
+        PointVector c = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] + width / 2.0);
+        PointVector d = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] + width / 2.0);
+
+        PointVector e = PointVector(basePoint.point_vector[0], basePoint.point_vector[1] + height, basePoint.point_vector[2]);
+
+        triangles[0] = Triangle(a, b, e, "pyramid");
+        triangles[1] = Triangle(b, c, e, "pyramid");
+        triangles[2] = Triangle(c, d, e, "pyramid");
+        triangles[3] = Triangle(d, a, e, "pyramid");
+        square = Square(a, b, c, d, "pyramid");
+    }
+
+    void setColor(Color color)
+    {
+        cout << "Setting color" << endl;
+        cout << color.red << " " << color.green << " " << color.blue << endl;
+        for (int i = 0; i < 4; i++)
+        {
+            triangles[i].setColor(color);
+        }
+        square.setColor(color);
+        this->color = color;
+    }
+
+    void drawPyramid()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            triangles[i].drawTriangle();
+        }
+        square.drawSquare();
+    }
+
+    virtual void draw()
+    {
+        drawPyramid();
+    }
+
+    virtual Ray get_normal(PointVector intersection_point, Ray ray)
+    {
+        PointVector normal1 = triangles[0].get_normal(intersection_point, ray).direction;
+        PointVector normal2 = triangles[1].get_normal(intersection_point, ray).direction;
+        PointVector normal3 = triangles[2].get_normal(intersection_point, ray).direction;
+        PointVector normal4 = triangles[3].get_normal(intersection_point, ray).direction;
+        PointVector normal5 = square.get_normal(intersection_point, ray).direction;
+
+        if (abs((intersection_point - triangles[0].a) * normal1) < 1e-5)
+        {
+            ray.direction * normal1 < 0 ? normal1 = normal1 * -1 : normal1 = normal1;
+            return Ray(intersection_point, normal1);
+        }
+        else if (abs((intersection_point - triangles[1].a) * normal2) < 1e-5)
+        {
+            ray.direction * normal2 < 0 ? normal2 = normal2 * -1 : normal2 = normal2;
+            return Ray(intersection_point, normal2);
+        }
+        else if (abs((intersection_point - triangles[2].a) * normal3) < 1e-5)
+        {
+            ray.direction * normal3 < 0 ? normal3 = normal3 * -1 : normal3 = normal3;
+            return Ray(intersection_point, normal3);
+        }
+        else if (abs((intersection_point - triangles[3].a) * normal4) < 1e-5)
+        {
+            ray.direction * normal4 < 0 ? normal4 = normal4 * -1 : normal4 = normal4;
+            return Ray(intersection_point, normal4);
+        }
+        else
+        {
+            ray.direction * normal5 < 0 ? normal5 = normal5 * -1 : normal5 = normal5;
+            return Ray(intersection_point, normal5);
+        }
+    }
+
+    virtual double find_intersection(Ray ray)
+    {
+        double tValues[5];
+        tValues[0] = triangles[0].find_intersection(ray);
+        tValues[1] = triangles[1].find_intersection(ray);
+        tValues[2] = triangles[2].find_intersection(ray);
+        tValues[3] = triangles[3].find_intersection(ray);
+        tValues[4] = square.find_intersection(ray);
+
+        double minT = -1;
+        for (int i = 0; i < 5; i++)
+        {
+            if (tValues[i] > 0)
+            {
+                if (minT < 0)
+                    minT = tValues[i];
+                else
+                    minT = min(minT, tValues[i]);
+            }
+        }
+
+        minT < 0 ? minT = -1 : minT = minT;
+        return minT;
+    }
+
+    virtual Color getColor(PointVector intersection_point)
+    {
+        return this->color;
+    }
+
+};
+
+
+class Cube : public Object
+{
+public:
+    PointVector points[8];
+    PointVector bottom_lower_left;
+    Triangle triangles[12];
+
+    Cube()
+    {
+
+    }
+
+    Cube(PointVector bottom_lower_left, double side)
+    {
+        this->length = side;
+        this->bottom_lower_left = bottom_lower_left;
+        type = CUBE;
+        points[0] = bottom_lower_left;
+        points[1] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1], bottom_lower_left.point_vector[2]);
+        points[2] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1], bottom_lower_left.point_vector[2] + side);
+        points[3] = PointVector(bottom_lower_left.point_vector[0], bottom_lower_left.point_vector[1], bottom_lower_left.point_vector[2] + side);   
+        points[4] = PointVector(bottom_lower_left.point_vector[0], bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2]);
+        points[5] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2]);
+        points[6] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2] + side);
+        points[7] = PointVector(bottom_lower_left.point_vector[0], bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2] + side);
+    }
+
+    void createTriangles()
+    {
+        for(int i=0; i<12; i++)
+        {
+            triangles[i] = Triangle();
+            triangles[i].setColor(color);
+            triangles[i].type = CUBE;
+            triangles[i].shininess = shininess;
+            triangles[i].setCoEfficients(co_efficients);
+        }
+
+        triangles[0].a = points[0];
+        triangles[0].b = points[1];
+        triangles[0].c = points[2];
+
+        triangles[1].a = points[0];
+        triangles[1].b = points[2];
+        triangles[1].c = points[3];
+
+        triangles[2].a = points[0];
+        triangles[2].b = points[1];
+        triangles[2].c = points[4];
+
+        triangles[3].a = points[1];
+        triangles[3].b = points[4];
+        triangles[3].c = points[5];
+
+        triangles[4].a = points[1];
+        triangles[4].b = points[2];
+        triangles[4].c = points[5];
+
+        triangles[5].a = points[2];
+        triangles[5].b = points[5];
+        triangles[5].c = points[6];
+
+        triangles[6].a = points[3];
+        triangles[6].b = points[2];
+        triangles[6].c = points[6];
+
+        triangles[7].a = points[3];
+        triangles[7].b = points[6];
+        triangles[7].c = points[7];
+
+        triangles[8].a = points[0];
+        triangles[8].b = points[3];
+        triangles[8].c = points[7];
+
+        triangles[9].a = points[0];
+        triangles[9].b = points[4];
+        triangles[9].c = points[7];
+
+        triangles[10].a = points[4];
+        triangles[10].b = points[5];
+        triangles[10].c = points[6];
+
+        triangles[11].a = points[4];
+        triangles[11].b = points[6];
+        triangles[11].c = points[7];
+    }
+
+    virtual void draw()
+    {
+
+    }
+    virtual double find_intersection(Ray ray)
+    {
+        return -1;
+    }
+
+    virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
+    {
+        return Ray();
+    }
 };
