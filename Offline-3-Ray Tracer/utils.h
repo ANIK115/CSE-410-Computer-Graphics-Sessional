@@ -97,6 +97,16 @@ public:
         return result;
     }
 
+    PointVector operator-()
+    {
+        PointVector result;
+        for (int i = 0; i < dimension - 1; i++)
+        {
+            result.point_vector[i] = -this->point_vector[i];
+        }
+        return result;
+    }
+
     double operator*(PointVector const& p)
     {
         double result = 0.0;
@@ -301,6 +311,25 @@ public:
         result.blue = this->blue * scalar;
         return result;
     }
+
+    //override * to multiply with another color
+    Color operator*(Color const &c)
+    {
+        Color result;
+        result.red = this->red * c.red;
+        result.green = this->green * c.green;
+        result.blue = this->blue * c.blue;
+        return result;
+    }
+
+    Color operator+(Color const &c)
+    {
+        Color result;
+        result.red = this->red + c.red;
+        result.green = this->green + c.green;
+        result.blue = this->blue + c.blue;
+        return result;
+    }
     
 };
 
@@ -309,6 +338,7 @@ class PointLight
 public:
     PointVector position;
     Color color;
+    double falloff;
 
     PointLight(PointVector position, Color color)
     {
@@ -319,12 +349,12 @@ public:
     PointLight()
     {
         position = PointVector();
-        color = Color();
+        color = Color(1.0, 1.0, 1.0);
     }
 
     void draw()
     {
-        glPointSize(5);
+        glPointSize(30);
         glBegin(GL_POINTS);
         glColor3f(color.red, color.green, color.blue);
         glVertex3f(position.point_vector[0], position.point_vector[1], position.point_vector[2]);
@@ -334,7 +364,7 @@ public:
     friend istream& operator>>(istream &in, PointLight &pl)
     {
         in >> pl.position;
-        in >> pl.color.red >> pl.color.green >> pl.color.blue;
+        in >> pl.falloff;
         return in;
     }
 
@@ -346,6 +376,8 @@ public:
     PointLight point_light;
     PointVector direction;
     double cut_off_angle;
+    double falloff;
+    Color color;
 
     SpotLight(PointLight point_light, PointVector direction, double cut_off_angle)
     {
@@ -359,6 +391,29 @@ public:
         point_light = PointLight();
         direction = PointVector();
         cut_off_angle = 0.0;
+        color = Color(1.0, 1.0, 1.0);
+    }
+
+    void drawCone(double height, double radius, int segments) 
+    {
+        double tempx = radius, tempy = 0;
+        double currx, curry;
+        glBegin(GL_TRIANGLES);
+            for (int i = 1; i <= segments; i++) {
+                double theta = i * 2.0 * M_PI / segments;
+                currx = radius * cos(theta);
+                curry = radius * sin(theta);
+
+                GLfloat c = (2+cos(theta))/3;
+                glColor3f(c,c,c);
+                glVertex3f(0, 0, height/2);
+                glVertex3f(currx, curry, -height/2);
+                glVertex3f(tempx, tempy, -height/2);
+
+                tempx = currx;
+                tempy = curry;
+            }
+        glEnd();
     }
 
     void draw()
@@ -366,16 +421,29 @@ public:
         //draw a cone shape
         glPushMatrix();
         glTranslatef(point_light.position.point_vector[0], point_light.position.point_vector[1], point_light.position.point_vector[2]);
-        glRotatef(90, 1, 0, 0);
+
+        PointVector dir = direction-point_light.position;
+        dir.normalizePoints();
+
+        double angleX = acos(dir.point_vector[0]);
+        double angleY = acos(dir.point_vector[1]);
+        double angleZ = acos(dir.point_vector[2]);
+
+      
+        glRotatef(angleY*180.0/M_PI, 0.0, 1.0, 0.0);  
+        glRotatef(-angleX*180.0/M_PI, 1.0, 0.0, 0.0);
+        glRotatef(-angleZ*180.0/M_PI, 0.0, 0.0, 1.0);
+
         glColor3f(point_light.color.red, point_light.color.green, point_light.color.blue);
-        glutSolidCone(0.5, 1, 20, 20);
+        //set size of the solid cone
+        drawCone(25, 10, 20);
         glPopMatrix();
     }
 
     friend istream& operator>>(istream& in, SpotLight &spot_light)
     {
         in >> spot_light.point_light.position;
-        in >> spot_light.point_light.color.red >> spot_light.point_light.color.green >> spot_light.point_light.color.blue;
+        in >> spot_light.point_light.falloff;
         in >> spot_light.direction;
         in >> spot_light.cut_off_angle;
         return in;
@@ -469,7 +537,7 @@ public:
         //When level is 0, the purpose of the intersect() method is to determine the nearest object only. No color computation is required then
         if(level == 0) 
         {
-            color = getColor(ray.origin + ray.direction * t);
+            // color = getColor(ray.origin + ray.direction * t);
             return t;
         }
 
@@ -480,7 +548,9 @@ public:
         Color object_color = getColor(intersection_point);
 
         //ambient color
-        Color ambient_color = object_color * co_efficients[AMBIENT];
+        color = object_color * co_efficients[AMBIENT];
+
+
 
         //calculating color for all the point lights
         for(int i=0; i<point_lights.size(); i++)
@@ -512,13 +582,24 @@ public:
 
             Ray normal = get_normal(intersection_point, incidentLightRay);
 
-            double lambert_value = max(0.0, normal.direction * incidentLightRay.direction);
+            double lambert_value = max(0.0, -normal.direction * incidentLightRay.direction);
 
-            
+            //reflected ray
+            Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
+
+            //diffuse color
+
+            color = color+ (object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value);
+
+            //specular color
+            double phong_value = max(0.0, -reflectedRay.direction * ray.direction);
+            phong_value = pow(phong_value, shininess);
+
+            color = color + object_color* (point_lights[i]->color * co_efficients[SPECULAR] * phong_value); 
 
         }
 
-        return 0;
+        return t;
     }
 
     virtual Color getColor(PointVector intersection_point)

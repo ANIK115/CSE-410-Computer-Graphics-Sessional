@@ -92,6 +92,16 @@ void display()
         objects[i]->draw();
     }
 
+    //draw lights
+    for(int i=0; i<point_lights.size(); i++)
+    {
+        point_lights[i]->draw();
+    }
+
+    for(int i=0; i<spotLights.size(); i++)
+    {
+        spotLights[i]->draw();
+    }
     glutSwapBuffers(); // Render now
 }
 
@@ -176,7 +186,7 @@ void capture()
             if(nearestObjectIndex != -1)
             {
                 color = Color(0, 0, 0);
-                double t = objects[nearestObjectIndex]->intersect(ray, color, 0);
+                double t = objects[nearestObjectIndex]->intersect(ray, color, 1);
                 
 
                 if(color.red > 1) color.red = 1;
@@ -188,8 +198,6 @@ void capture()
                 if(color.blue < 0) color.blue = 0;
 
                 image.set_pixel(i, j, color.red*255, color.green*255, color.blue*255);
-
-
             }
 
         }
@@ -461,6 +469,17 @@ void loadData()
         PointLight *pointLight = new PointLight();
         in >> *pointLight;
         point_lights.push_back(pointLight);
+    }
+
+    cout << "Number of point lights: " << point_lights.size() << endl;
+
+    int numberOfSpotLights;
+    in >> numberOfSpotLights;
+    for(int i=0; i<numberOfSpotLights; i++)
+    {
+        SpotLight *spotLight = new SpotLight();
+        in >> *spotLight;
+        spotLights.push_back(spotLight);
     }
 
 }
