@@ -20,14 +20,14 @@ int countIncreaseX = 0;
 int countIncreaseZ = 0;
 
 double nearDistance, farDistance, fovY, fovX, aspectRatio;
-int levelOfRecursion;
+int depthOfRecursion;
 int imageSize, imageCount=0 ;
 double screenWidth, screenHeight;
 bitmap_image image;
 
 vector<Object*> objects;
 vector<PointLight*> point_lights;
-vector<SpotLight*> spotLights;
+vector<SpotLight*> spot_lights;
 
 
 /*Used from demo code that was provided in moodle*/
@@ -66,10 +66,10 @@ void display()
     glLoadIdentity();           // Reset the model-view matrix
 
 
-    // cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
-    // cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
-    // cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
-    // cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
+    cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
+    cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
+    cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
+    cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
 
     gluLookAt(pos.x,pos.y,pos.z,
               pos.x+l.x,pos.y+l.y,pos.z+l.z,
@@ -87,7 +87,7 @@ void display()
         if(objects[i]->getType()==FLOOR)
         {
             Floor *floor = (Floor*)objects[i];
-            floor->setNewReferencePoint(PointVector(pos.x, 0, pos.z));
+            floor->setNewReferencePoint(PointVector(pos.x, pos.y, 0));
         }
         objects[i]->draw();
     }
@@ -98,9 +98,9 @@ void display()
         point_lights[i]->draw();
     }
 
-    for(int i=0; i<spotLights.size(); i++)
+    for(int i=0; i<spot_lights.size(); i++)
     {
-        spotLights[i]->draw();
+        spot_lights[i]->draw();
     }
     glutSwapBuffers(); // Render now
 }
@@ -215,7 +215,7 @@ void keyboardListener(unsigned char key, int xx,int yy){
         case '0':
             capture();
             break;
-		case '2':
+		case '1':
 			r.x = r.x*cos(rate)+l.x*sin(rate);
 			r.y = r.y*cos(rate)+l.y*sin(rate);
 			r.z = r.z*cos(rate)+l.z*sin(rate);
@@ -225,7 +225,7 @@ void keyboardListener(unsigned char key, int xx,int yy){
 			l.z = l.z*cos(rate)-r.z*sin(rate);
 			break;
 
-        case '1':
+        case '2':
 			r.x = r.x*cos(-rate)+l.x*sin(-rate);
 			r.y = r.y*cos(-rate)+l.y*sin(-rate);
 			r.z = r.z*cos(-rate)+l.z*sin(-rate);
@@ -348,11 +348,11 @@ void specialKeyListener(int key, int x,int y)
 
 void loadData()
 {
-    ifstream in("scene2.txt");
+    ifstream in("scene.txt");
     in >> nearDistance >> farDistance >> fovY >> aspectRatio;
     fovX = fovY * aspectRatio;
 
-    in >> levelOfRecursion >> imageSize;
+    in >> depthOfRecursion >> imageSize;
 
     screenHeight = screenWidth = imageSize;
     
@@ -363,12 +363,11 @@ void loadData()
 
 
     Object *floor;
-    PointVector floor_ref(pos.x, 0, pos.z);
+    PointVector floor_ref(pos.x, pos.y, 0);
     floor = new Floor(floorWidth, floor_ref);
-    floor->setColor(Color(0.5, 0.5, 0.5));
     double co_efficients[] = {floor_ambient, floor_diffuse, 0.0, floor_reflection};
     floor->setCoEfficients(co_efficients);
-    floor->setShininess(1);
+    floor->setShininess(30);
 
     int numberOfObjects;
     in >> numberOfObjects;
@@ -469,27 +468,29 @@ void loadData()
         PointLight *pointLight = new PointLight();
         in >> *pointLight;
         point_lights.push_back(pointLight);
+        cout << "Point Light Color: " << pointLight->color.red << ", " << pointLight->color.green << ", " << pointLight->color.blue << endl;
     }
 
     cout << "Number of point lights: " << point_lights.size() << endl;
 
-    int numberOfSpotLights;
-    in >> numberOfSpotLights;
-    for(int i=0; i<numberOfSpotLights; i++)
+    int numberOfspot_lights;
+    in >> numberOfspot_lights;
+    for(int i=0; i<numberOfspot_lights; i++)
     {
         SpotLight *spotLight = new SpotLight();
         in >> *spotLight;
-        spotLights.push_back(spotLight);
+        spot_lights.push_back(spotLight);
+        cout << "Spot Light Color: " << spotLight->color.red << ", " << spotLight->color.green << ", " << spotLight->color.blue << endl;
     }
 
 }
 void initialization()
 {
 
-    pos.x = 175; pos.y = 60, pos.z = 0;
-    l.x = 0-1; l.y = 0; l.z = 0;
-    r.x = 0; r.y = 0; r.z = -1;
-    u.x = 0; u.y = 1; u.z = 0;
+    pos.x = 0; pos.y = -160, pos.z = 60;
+    l.x = 0; l.y = 1; l.z = 0;
+    r.x = 1; r.y = 0; r.z = 0;
+    u.x = 0; u.y = 0; u.z = 1;
 
     glClearColor(0,0,0,0);
     glMatrixMode(GL_PROJECTION);

@@ -365,6 +365,7 @@ public:
     {
         in >> pl.position;
         in >> pl.falloff;
+        pl.color = Color(1.0, 1.0, 1.0);
         return in;
     }
 
@@ -384,6 +385,7 @@ public:
         this->point_light = point_light;
         this->direction = direction;
         this->cut_off_angle = cut_off_angle;
+        this->color = point_light.color;
     }
 
     SpotLight()
@@ -394,7 +396,7 @@ public:
         color = Color(1.0, 1.0, 1.0);
     }
 
-    void drawCone(double height, double radius, int segments) 
+    void drawCone(double height, double radius, int segments, Color color) 
     {
         double tempx = radius, tempy = 0;
         double currx, curry;
@@ -405,7 +407,7 @@ public:
                 curry = radius * sin(theta);
 
                 GLfloat c = (2+cos(theta))/3;
-                glColor3f(c,c,c);
+                glColor3f(color.red , color.green, color.blue);
                 glVertex3f(0, 0, height/2);
                 glVertex3f(currx, curry, -height/2);
                 glVertex3f(tempx, tempy, -height/2);
@@ -434,18 +436,23 @@ public:
         glRotatef(-angleX*180.0/M_PI, 1.0, 0.0, 0.0);
         glRotatef(-angleZ*180.0/M_PI, 0.0, 0.0, 1.0);
 
-        glColor3f(point_light.color.red, point_light.color.green, point_light.color.blue);
+        glColor3f(color.red, color.green, color.blue);
+        cout << "Color of Spot Light: " << color.red << " " << color.green << " " << color.blue << endl;
         //set size of the solid cone
-        drawCone(25, 10, 20);
+        drawCone(25, 10, 20, color);
         glPopMatrix();
     }
 
     friend istream& operator>>(istream& in, SpotLight &spot_light)
     {
         in >> spot_light.point_light.position;
-        in >> spot_light.point_light.falloff;
+        in >> spot_light.falloff;
         in >> spot_light.direction;
         in >> spot_light.cut_off_angle;
+        spot_light.color = Color(1.0, 1.0, 1.0);
+        spot_light.direction = spot_light.direction - spot_light.point_light.position;
+        //convert to radian
+        // spot_light.cut_off_angle = spot_light.cut_off_angle * M_PI / 180.0;
         return in;
     }
 
@@ -461,6 +468,7 @@ public:
     {
         this->origin = origin;
         this->direction = direction;
+        this->direction.normalizePoints();
     }
 
     Ray()
@@ -477,6 +485,7 @@ public:
 };
 
 class Object;
+extern int depthOfRecursion;
 extern vector <PointLight*> point_lights;
 extern vector <Object*> objects;
 extern vector <SpotLight*> spot_lights;
@@ -530,6 +539,7 @@ public:
 
     double intersect(Ray ray, Color &color, int level)
     {
+        ray.direction.normalizePoints();
         double t = find_intersection(ray);
         //No intersection
         if(t < 0)
@@ -547,14 +557,20 @@ public:
         //color of the object
         Color object_color = getColor(intersection_point);
 
+
         //ambient color
         color = object_color * co_efficients[AMBIENT];
+        // cout << "Ambient Color: " << color.red << " " << color.green << " " << color.blue << endl;
 
 
 
         //calculating color for all the point lights
         for(int i=0; i<point_lights.size(); i++)
         {
+
+            //scaling factor = exp(-falloff * distance^2)
+            double distance = (intersection_point - ray.origin).magnitude();
+            double scaling_factor = exp(-point_lights[0]->falloff * distance * distance);
             Ray incidentLightRay = Ray(point_lights[i]->position, intersection_point - point_lights[i]->position);
             incidentLightRay.direction.normalizePoints();
 
@@ -582,22 +598,129 @@ public:
 
             Ray normal = get_normal(intersection_point, incidentLightRay);
 
-            double lambert_value = max(0.0, -normal.direction * incidentLightRay.direction);
+            normal.direction.normalizePoints();
+            incidentLightRay.direction.normalizePoints();
+
+            double lambert_value = max(0.0, normal.direction * incidentLightRay.direction);
 
             //reflected ray
             Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
 
-            //diffuse color
+            reflectedRay.direction.normalizePoints();
 
-            color = color+ (object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value);
+            //diffuse color
+            Color diffuse_color = object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value * scaling_factor;
+            // cout << "Diffuse Color: " << diffuse_color.red << " " << diffuse_color.green << " " << diffuse_color.blue << endl;
+            color = color+ diffuse_color;
+            // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
 
             //specular color
-            double phong_value = max(0.0, -reflectedRay.direction * ray.direction);
+            double phong_value = max(0.0, reflectedRay.direction * ray.direction);
             phong_value = pow(phong_value, shininess);
 
-            color = color + object_color* (point_lights[i]->color * co_efficients[SPECULAR] * phong_value); 
+            color = color + object_color* (point_lights[i]->color * co_efficients[2] * phong_value * scaling_factor); 
 
         }
+
+        // //calculating color for all the spot lights
+        for(int i=0; i<spot_lights.size(); i++)
+        {
+            //scaling factor = exp(-falloff * distance^2)
+            double distance = (intersection_point - ray.origin).magnitude();
+            double scaling_factor = exp(-spot_lights[i]->falloff * distance * distance);
+            spot_lights[i]->direction.normalizePoints();
+            Ray incidentLightRay = Ray(spot_lights[i]->point_light.position, intersection_point - spot_lights[i]->point_light.position);
+
+            incidentLightRay.direction.normalizePoints();
+
+            double angle = acos(incidentLightRay.direction * spot_lights[i]->direction);
+
+            //convert to degrees
+            angle = angle * 180.0 / M_PI;
+
+            // cout << "Angle: " << angle << endl;
+
+            if(fabs(angle) < spot_lights[i]->cut_off_angle) {
+
+                // cout << "Angle: " << fabs(angle) << endl;
+
+                Ray normal = get_normal(intersection_point, incidentLightRay);
+                normal.direction.normalizePoints();
+
+                if((intersection_point - incidentLightRay.origin).magnitude() < 1e-5)
+                {
+                    continue;
+                }
+
+                bool isInShadow = false;
+                for(int j=0; j<objects.size(); j++)
+                {
+                    double t = objects[j]->find_intersection(incidentLightRay);
+                    if(t > 0 && t+ 1e-5 < (intersection_point - incidentLightRay.origin).magnitude())
+                    {
+                        isInShadow = true;
+                        break;
+                    }
+                }
+
+                if(isInShadow)
+                    continue;
+
+                // cout << "Calculating color for spot light: " << i << endl;
+                //diffuse color
+                double lambert_value = max(0.0, normal.direction * incidentLightRay.direction); 
+                // cout << "Lambert Value: " << lambert_value << endl;
+
+                color = color + (object_color * co_efficients[DIFFUSE] * spot_lights[i]->color * lambert_value * scaling_factor);  
+
+                //reflected ray
+                Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
+
+                reflectedRay.direction.normalizePoints();
+
+                //specular color
+                double phong_value = max(0.0, reflectedRay.direction * ray.direction);
+                // cout << "Phong Value: " << phong_value << endl;
+                phong_value = pow(phong_value, shininess);
+
+                color = color + object_color * (spot_lights[i]->color * co_efficients[SPECULAR] * phong_value * scaling_factor);
+                // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
+            }
+               
+        }
+
+        // recursive reflection
+
+        if(level < depthOfRecursion)
+        {
+            Ray reflectedRay = Ray(intersection_point, ray.direction - get_normal(intersection_point, ray).direction * 2.0 * (ray.direction * get_normal(intersection_point, ray).direction));
+            reflectedRay.direction.normalizePoints();
+            
+            reflectedRay.origin = reflectedRay.origin + reflectedRay.direction * 1e-5;
+
+            int nearest = -1;
+            double min_t = 1e15;
+            for(int i=0; i<objects.size(); i++)
+            {
+                double t = objects[i]->find_intersection(reflectedRay);
+                if(t > 0 && t < min_t)
+                {
+                    min_t = t;
+                    nearest = i;
+                }
+            }
+
+            if(nearest != -1)
+            {
+                Color reflectedColor(0, 0, 0);
+                double t = objects[nearest]->intersect(reflectedRay, reflectedColor, level+1);
+                color = color + reflectedColor * co_efficients[REFLECTION];
+            }
+        }
+        // else if(level == depthOfRecursion)
+        // {
+        //     color = color + Color(0.0, 0.0, 0.0) * co_efficients[REFLECTION];
+        // }
 
         return t;
     }
@@ -612,24 +735,24 @@ public:
 class Floor : public Object
 {
 public:
-    int number_of_tiles, number_of_tiles_in_X, number_of_tiles_in_Z;
-    int startX, finishX, startZ, finishZ, diffX, diffZ;
+    int number_of_tiles, number_of_tiles_in_X, number_of_tiles_in_Z, number_of_tiles_in_Y;
+    int startX, finishX, startZ, finishZ, diffX, diffZ, startY, finishY, diffY;
     PointVector new_reference_point;
     Floor()
     {
         number_of_tiles = 100;
         type = FLOOR;
-        number_of_tiles_in_X = number_of_tiles_in_Z = 100;
-        diffX = diffZ = 0;
+        number_of_tiles_in_X = number_of_tiles_in_Z = number_of_tiles_in_Y = 100;
+        diffX = diffZ = diffY = 0;
     }
 
     Floor(int shellWidth, PointVector reference_point)
     {
         this->reference_point = reference_point;
         this->width = shellWidth;
-        number_of_tiles = number_of_tiles_in_X = number_of_tiles_in_Z = 100;
+        number_of_tiles = number_of_tiles_in_X = number_of_tiles_in_Z = number_of_tiles_in_Y = 100;
         type = FLOOR;
-        diffX = diffZ = 0;
+        diffX = diffZ = diffY = 0;
     }
 
     void setReferencePoint(PointVector reference_point)
@@ -643,17 +766,15 @@ public:
     }
 
 
-
-
     virtual void draw()
     {
         number_of_tiles = 100;
         diffX = (new_reference_point.point_vector[0] - reference_point.point_vector[0]) / width;
-        diffZ = (new_reference_point.point_vector[2] - reference_point.point_vector[2]) / width;
+        diffY = (new_reference_point.point_vector[1] - reference_point.point_vector[1]) / width;
         
         startX = reference_point.point_vector[0]-50*width - 2*diffX*width;
         
-        startZ = reference_point.point_vector[2]-50*width - 2*diffZ*width;
+        startY = reference_point.point_vector[1]-50*width - 2*diffY*width;
         for(int i=0; i<number_of_tiles; i++)
         {
             for(int j=0; j<number_of_tiles; j++)
@@ -666,13 +787,13 @@ public:
                 glBegin(GL_QUADS);
                 {
                     //draw in XY plane
-                    glVertex3f(startX + i*width, reference_point.point_vector[1], startZ + j*width);
+                    glVertex3f(startX + i*width,startY + j*width,  reference_point.point_vector[2]);
 
-                    glVertex3f(startX + i*width, reference_point.point_vector[1], startZ + (j+1)*width);
+                    glVertex3f(startX + i*width, startY + (j+1)*width, reference_point.point_vector[2]);
 
-                    glVertex3f(startX + (i+1)*width, reference_point.point_vector[1], startZ + (j+1)*width);
+                    glVertex3f(startX + (i+1)*width, startY + (j+1)*width, reference_point.point_vector[2]);
 
-                    glVertex3f(startX + (i+1)*width, reference_point.point_vector[1], startZ + j*width);
+                    glVertex3f(startX + (i+1)*width, startY + j*width, reference_point.point_vector[2]);
                 }
                 glEnd();
                 
@@ -682,7 +803,7 @@ public:
 
     virtual double find_intersection(Ray ray)
     {
-        PointVector normal = PointVector(0.0, 1.0, 0.0);
+        PointVector normal = PointVector(0.0, 0.0, 1.0);
         ray.direction.normalizePoints();
         double dotProduct = normal * ray.direction;
 
@@ -696,11 +817,11 @@ public:
     {
         if(incident_ray.direction.point_vector[2] > 0)
         {
-            return Ray(intersection_point, PointVector(0.0, 1.0, 0.0));
+            return Ray(intersection_point, PointVector(0.0, 0.0, 1.0));
         }
         else
         {
-            return Ray(intersection_point, PointVector(0.0, -1.0, 0.0));
+            return Ray(intersection_point, PointVector(0.0, 0.0, -1.0));
         }
     }
 
@@ -708,9 +829,9 @@ public:
     virtual Color getColor(PointVector intersection_point)
     {
         int x = (intersection_point.point_vector[0]- startX) / width;
-        int z = (intersection_point.point_vector[2]- startZ) / width;
+        int y = (intersection_point.point_vector[1]- startY) / width;
         
-        if((x+z)%2 == 0)
+        if((x+y)%2 == 0)
             return Color(1.0, 1.0, 1.0);
         else
             return Color(0.0, 0.0, 0.0);
@@ -801,7 +922,7 @@ public:
 
     virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
     {
-        return Ray();
+        return Ray(intersection_point, intersection_point - reference_point);
     }
 
     friend std::istream& operator>>(std::istream& in, Sphere& s)
@@ -1017,21 +1138,22 @@ public:
         type = PYRAMID;
     }
 
-    Pyramid(PointVector basePoint, double width, double height)
+    Pyramid(PointVector lowestPoint, double width, double height)
     {
-        //The base of the pyramid is square and it is in ZX plane.
+        //The base of the pyramid is square and it is in XY plane.
         //The base is centered at basePoint
         this->width = width;
         this->height = height;
         type = PYRAMID;
 
         //calculate the corner points of the Pyramid
-        PointVector a = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] - width / 2.0);
-        PointVector b = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] - width / 2.0);
-        PointVector c = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] + width / 2.0);
-        PointVector d = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1], basePoint.point_vector[2] + width / 2.0);
+        PointVector basePoint = lowestPoint + PointVector(width / 2.0, width / 2.0, 0.0);
+        PointVector a = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1] - width / 2.0, basePoint.point_vector[2]);
+        PointVector b = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1] - width / 2.0, basePoint.point_vector[2]);
+        PointVector c = PointVector(basePoint.point_vector[0] + width / 2.0, basePoint.point_vector[1] + width / 2.0, basePoint.point_vector[2]);
+        PointVector d = PointVector(basePoint.point_vector[0] - width / 2.0, basePoint.point_vector[1] + width / 2.0, basePoint.point_vector[2]);
 
-        PointVector e = PointVector(basePoint.point_vector[0], basePoint.point_vector[1] + height, basePoint.point_vector[2]);
+        PointVector e = PointVector(basePoint.point_vector[0], basePoint.point_vector[1], basePoint.point_vector[2] + height);
 
         triangles[0] = Triangle(a, b, e, "pyramid");
         triangles[1] = Triangle(b, c, e, "pyramid");
