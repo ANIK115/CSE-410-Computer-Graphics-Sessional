@@ -625,6 +625,7 @@ public:
 
             // color = color + object_color* (point_lights[i]->color * co_efficients[2] * phong_value * scaling_factor);
             specular_color += phong_value * scaling_factor; 
+
         }
 
         for(int i=0; i<point_lights.size(); i++)
@@ -652,6 +653,9 @@ public:
             angle = angle * 180.0 / M_PI;
 
             // cout << "Angle: " << angle << endl;
+
+            // if(incidentLightRay.direction * ray.direction < 1e-5)
+            //     continue;
 
             if(fabs(angle) < spot_lights[i]->cut_off_angle) {
 
@@ -686,7 +690,7 @@ public:
 
                 // color = color + (object_color * co_efficients[DIFFUSE] * spot_lights[i]->color * lambert_value * scaling_factor);  
 
-                diffuse_color = diffuse_color + lambert_value * scaling_factor;
+                diffuse_color += lambert_value * scaling_factor;
 
                 //reflected ray
                 Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
@@ -702,7 +706,7 @@ public:
                     phong_value = pow(phong_value, shininess);
 
                 // color = color + object_color * (spot_lights[i]->color * co_efficients[SPECULAR] * phong_value * scaling_factor);
-                specular_color = specular_color + phong_value * scaling_factor;
+                specular_color += phong_value * scaling_factor;
                 // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
             }
                
@@ -791,10 +795,32 @@ public:
         number_of_tiles = 100;
         diffX = (new_reference_point.point_vector[0] - reference_point.point_vector[0]) / width;
         diffY = (new_reference_point.point_vector[1] - reference_point.point_vector[1]) / width;
+
+        cout << "DiffX: " << diffX << endl;
+        cout << "DiffY: " << diffY << endl;
         
-        startX = reference_point.point_vector[0]-50*width - 2*diffX*width;
+        startX = reference_point.point_vector[0]-50*width ;
         
-        startY = reference_point.point_vector[1]-50*width - 2*diffY*width;
+        startY = reference_point.point_vector[1]-50*width ;
+
+        if(diffX %2 == 0)
+        {
+            startX += diffX * width;
+        }else
+        {
+            startX += (diffX-1) * width;
+        }
+
+        if(diffY %2 == 0)
+        {
+            startY += diffY * width;
+        }else
+        {
+            startY += (diffY-1) * width;
+        }
+
+        cout << "StartX: " << startX << endl;
+        cout << "StartY: " << startY << endl;
         for(int i=0; i<number_of_tiles; i++)
         {
             for(int j=0; j<number_of_tiles; j++)
@@ -827,7 +853,7 @@ public:
         ray.direction.normalizePoints();
         double dotProduct = normal * ray.direction;
 
-        if(-1e-5 <= dotProduct && dotProduct <= 1e-5)
+        if(round(dotProduct * 1000) == 0)
             return -1;
         double t = -(normal * ray.origin) / dotProduct;        
         return t;

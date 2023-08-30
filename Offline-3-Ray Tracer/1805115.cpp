@@ -14,7 +14,7 @@ struct point r;     // right direction
 struct point u;     // up direction
 bool isAxes = true;
 int rotation_angle = 0; //this angle is to rotate the object w.r.t its own axis
-double speed = 5;
+double speed = 4;
 
 double nearDistance, farDistance, fovY, fovX, aspectRatio;
 int depthOfRecursion;
@@ -63,10 +63,10 @@ void display()
     glLoadIdentity();           // Reset the model-view matrix
 
 
-    cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
-    cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
-    cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
-    cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
+    // cout << "eyes: " << pos.x << ", " << pos.y << ", " << pos.z << endl;
+    // cout << "look: " << l.x << ", " << l.y << ", " << l.z << endl;
+    // cout << "up: " << u.x << ", " << u.y << ", " << u.z << endl;
+    // cout << "right: " << r.x << ", " << r.y << ", " << r.z << endl;
 
     gluLookAt(pos.x,pos.y,pos.z,
               pos.x+l.x,pos.y+l.y,pos.z+l.z,
@@ -183,6 +183,7 @@ void capture()
             if(nearestObjectIndex != -1)
             {
                 color = Color(0, 0, 0);
+
                 double t = objects[nearestObjectIndex]->intersect(ray, color, depthOfRecursion);
                 
 
@@ -206,7 +207,7 @@ void capture()
 }
 /* Callback handler for normal-key event */
 void keyboardListener(unsigned char key, int xx,int yy){
-    double rate = 0.1;
+    double rate = 0.05;
     double clockwise_rotation_angle = 10.0;
 	switch(key){
         case '0':
@@ -408,6 +409,9 @@ void loadData()
                 objects.push_back(triangle);
             }
             Object *square = new OptimizedSquare(pyramid->square);
+            square->setColor(color);
+            square->setCoEfficients(co_efficients);
+            square->setShininess(shininess);
             objects.push_back(square);
 
         }else if(objectType == "cube")
