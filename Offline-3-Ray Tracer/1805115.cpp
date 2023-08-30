@@ -14,10 +14,7 @@ struct point r;     // right direction
 struct point u;     // up direction
 bool isAxes = true;
 int rotation_angle = 0; //this angle is to rotate the object w.r.t its own axis
-int countDecreaseX = 0;
-int countDecreaseZ = 0;
-int countIncreaseX = 0;
-int countIncreaseZ = 0;
+double speed = 5;
 
 double nearDistance, farDistance, fovY, fovX, aspectRatio;
 int depthOfRecursion;
@@ -175,7 +172,7 @@ void capture()
 
             for(int k=0; k<objects.size(); k++)
             {
-                t = objects[k]->intersect(ray, color, 0);
+                t = objects[k]->find_intersection(ray);
                 if(t > 0 && (nearestObjectIndex == -1 || t < t_min))
                 {
                     t_min = t;
@@ -186,7 +183,7 @@ void capture()
             if(nearestObjectIndex != -1)
             {
                 color = Color(0, 0, 0);
-                double t = objects[nearestObjectIndex]->intersect(ray, color, 1);
+                double t = objects[nearestObjectIndex]->intersect(ray, color, depthOfRecursion);
                 
 
                 if(color.red > 1) color.red = 1;
@@ -209,7 +206,7 @@ void capture()
 }
 /* Callback handler for normal-key event */
 void keyboardListener(unsigned char key, int xx,int yy){
-    double rate = 0.01;
+    double rate = 0.1;
     double clockwise_rotation_angle = 10.0;
 	switch(key){
         case '0':
@@ -298,37 +295,37 @@ void specialKeyListener(int key, int x,int y)
 {
 	switch(key){
 		case GLUT_KEY_UP:		//down arrow key
-			pos.x+=l.x*2;
-			pos.y+=l.y*2;
-			pos.z+=l.z*2;
+			pos.x+=l.x*speed;
+			pos.y+=l.y*speed;
+			pos.z+=l.z*speed;
 
 			break;
 		case GLUT_KEY_DOWN:		// up arrow key
-			pos.x-=l.x*2;
-			pos.y-=l.y*2;
-			pos.z-=l.z*2;
+			pos.x-=l.x*speed;
+			pos.y-=l.y*speed;
+			pos.z-=l.z*speed;
 			break;
 
 		case GLUT_KEY_RIGHT:
-			pos.x+=r.x*2;
-			pos.y+=r.y*2;
-			pos.z+=r.z*2;
+			pos.x+=r.x*speed;
+			pos.y+=r.y*speed;
+			pos.z+=r.z*speed;
 			break;
 		case GLUT_KEY_LEFT :
-			pos.x-=r.x*2;
-			pos.y-=r.y*2;
-			pos.z-=r.z*2;
+			pos.x-=r.x*speed;
+			pos.y-=r.y*speed;
+			pos.z-=r.z*speed;
 			break;
 
 		case GLUT_KEY_PAGE_UP:
-		    pos.x+=u.x*2;
-			pos.y+=u.y*2;
-			pos.z+=u.z*2;
+		    pos.x+=u.x*speed;
+			pos.y+=u.y*speed;
+			pos.z+=u.z*speed;
 			break;
 		case GLUT_KEY_PAGE_DOWN:
-            pos.x-=u.x*2;
-			pos.y-=u.y*2;
-			pos.z-=u.z*2;
+            pos.x-=u.x*speed;
+			pos.y-=u.y*speed;
+			pos.z-=u.z*speed;
 			break;
 
 		case GLUT_KEY_INSERT:
@@ -367,7 +364,7 @@ void loadData()
     floor = new Floor(floorWidth, floor_ref);
     double co_efficients[] = {floor_ambient, floor_diffuse, 0.0, floor_reflection};
     floor->setCoEfficients(co_efficients);
-    floor->setShininess(30);
+    floor->setShininess(0);
 
     int numberOfObjects;
     in >> numberOfObjects;
@@ -410,15 +407,8 @@ void loadData()
                 triangle->setShininess(shininess);
                 objects.push_back(triangle);
             }
-
-            for(int k=0; k<2; k++)
-            {
-                Object *triangle = new Triangle(pyramid->square.triangles[k]);
-                triangle->setColor(color);
-                triangle->setCoEfficients(co_efficients);
-                triangle->setShininess(shininess);
-                objects.push_back(triangle);
-            }
+            Object *square = new OptimizedSquare(pyramid->square);
+            objects.push_back(square);
 
         }else if(objectType == "cube")
         {
@@ -438,15 +428,15 @@ void loadData()
             in >> shininess;
             cube->setShininess(shininess);
 
-            cube->createTriangles();
+            cube->createSquares();
 
-            for(int k=0; k<12; k++)
+            for(int k=0; k<6; k++)
             {
-                Object *triangle = new Triangle(cube->triangles[k]);
-                triangle->setColor(color);
-                triangle->setCoEfficients(co_efficients);
-                triangle->setShininess(shininess);
-                objects.push_back(triangle);
+                Object *square = new OptimizedSquare(cube->squares[k]);
+                square->setColor(color);
+                square->setCoEfficients(co_efficients);
+                square->setShininess(shininess);
+                objects.push_back(square);
             }
             
         }

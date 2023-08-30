@@ -565,6 +565,7 @@ public:
 
 
         //calculating color for all the point lights
+        double diffuse_color =0, specular_color=0;
         for(int i=0; i<point_lights.size(); i++)
         {
 
@@ -609,18 +610,30 @@ public:
             reflectedRay.direction.normalizePoints();
 
             //diffuse color
-            Color diffuse_color = object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value * scaling_factor;
-            // cout << "Diffuse Color: " << diffuse_color.red << " " << diffuse_color.green << " " << diffuse_color.blue << endl;
-            color = color+ diffuse_color;
+            // Color diffuse_color = object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value * scaling_factor;
+            diffuse_color += lambert_value * scaling_factor;
+
+            // color = color+ diffuse_color;
             // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
 
             //specular color
             double phong_value = max(0.0, reflectedRay.direction * ray.direction);
-            phong_value = pow(phong_value, shininess);
+            if(shininess == 0)
+                phong_value = phong_value;
+            else
+                phong_value = pow(phong_value, shininess);
 
-            color = color + object_color* (point_lights[i]->color * co_efficients[2] * phong_value * scaling_factor); 
-
+            // color = color + object_color* (point_lights[i]->color * co_efficients[2] * phong_value * scaling_factor);
+            specular_color += phong_value * scaling_factor; 
         }
+
+        for(int i=0; i<point_lights.size(); i++)
+        {
+            color = color + object_color * point_lights[i]->color * (diffuse_color * co_efficients[DIFFUSE] + specular_color * co_efficients[SPECULAR]);
+        }
+
+        diffuse_color = 0;
+        specular_color = 0;
 
         // //calculating color for all the spot lights
         for(int i=0; i<spot_lights.size(); i++)
@@ -671,7 +684,9 @@ public:
                 double lambert_value = max(0.0, normal.direction * incidentLightRay.direction); 
                 // cout << "Lambert Value: " << lambert_value << endl;
 
-                color = color + (object_color * co_efficients[DIFFUSE] * spot_lights[i]->color * lambert_value * scaling_factor);  
+                // color = color + (object_color * co_efficients[DIFFUSE] * spot_lights[i]->color * lambert_value * scaling_factor);  
+
+                diffuse_color = diffuse_color + lambert_value * scaling_factor;
 
                 //reflected ray
                 Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
@@ -681,17 +696,26 @@ public:
                 //specular color
                 double phong_value = max(0.0, reflectedRay.direction * ray.direction);
                 // cout << "Phong Value: " << phong_value << endl;
-                phong_value = pow(phong_value, shininess);
+                if(shininess == 0)
+                    phong_value = phong_value;
+                else
+                    phong_value = pow(phong_value, shininess);
 
-                color = color + object_color * (spot_lights[i]->color * co_efficients[SPECULAR] * phong_value * scaling_factor);
+                // color = color + object_color * (spot_lights[i]->color * co_efficients[SPECULAR] * phong_value * scaling_factor);
+                specular_color = specular_color + phong_value * scaling_factor;
                 // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
             }
                
         }
 
+        for(int i=0; i<spot_lights.size(); i++)
+        {
+            color = color + object_color * spot_lights[i]->color * (diffuse_color * co_efficients[DIFFUSE] + specular_color * co_efficients[SPECULAR]);
+        } 
+
         // recursive reflection
 
-        if(level < depthOfRecursion)
+        if(level > 0)
         {
             Ray reflectedRay = Ray(intersection_point, ray.direction - get_normal(intersection_point, ray).direction * 2.0 * (ray.direction * get_normal(intersection_point, ray).direction));
             reflectedRay.direction.normalizePoints();
@@ -713,14 +737,10 @@ public:
             if(nearest != -1)
             {
                 Color reflectedColor(0, 0, 0);
-                double t = objects[nearest]->intersect(reflectedRay, reflectedColor, level+1);
+                double t = objects[nearest]->intersect(reflectedRay, reflectedColor, level-1);
                 color = color + reflectedColor * co_efficients[REFLECTION];
             }
         }
-        // else if(level == depthOfRecursion)
-        // {
-        //     color = color + Color(0.0, 0.0, 0.0) * co_efficients[REFLECTION];
-        // }
 
         return t;
     }
@@ -1046,76 +1066,80 @@ public:
 
 };
 
-class Square : public Object
+class OptimizedSquare : public Object
 {
 public:
-    Triangle triangles[2];
-    Square()
+    PointVector a, b, c, d;
+    OptimizedSquare()
     {
-        triangles[0] = Triangle();
-        triangles[1] = Triangle();
+        a = PointVector();
+        b = PointVector();
+        c = PointVector();
+        d = PointVector();
         type = CUBE;
     }
 
-    Square(PointVector a, PointVector b, PointVector c, PointVector d, string type)
+
+    OptimizedSquare(PointVector a, PointVector b, PointVector c, PointVector d, string type)
     {
-        triangles[0] = Triangle(a, b, c, type);
-        triangles[1] = Triangle(a, c, d, type);
+        this->a = a;
+        this->b = b;
+        this->c = c;
+        this->d = d;
         type == "pyramid" ? this->type = PYRAMID : this->type = CUBE;
     }
 
-    void setColor(Color color)
+    void virtual draw()
     {
-        for (int i = 0; i < 2; i++)
+        glColor3f(color.red, color.green, color.blue);
+        glBegin(GL_QUADS);
         {
-            triangles[i].setColor(color);
+            glVertex3f(a.point_vector[0], a.point_vector[1], a.point_vector[2]);
+            glVertex3f(b.point_vector[0], b.point_vector[1], b.point_vector[2]);
+            glVertex3f(c.point_vector[0], c.point_vector[1], c.point_vector[2]);
+            glVertex3f(d.point_vector[0], d.point_vector[1], d.point_vector[2]);
         }
-    }
-
-    void drawSquare()
-    {
-        for (int i = 0; i < 2; i++)
-        {
-            triangles[i].drawTriangle();
-        }
-    }
-
-    virtual void draw()
-    {
-        drawSquare();
+        glEnd();
     }
 
     virtual Ray get_normal(PointVector intersection_point, Ray incident_ray)
     {
-        //check if the intersection point is on the first triangle or the second triangle
-        PointVector normal1 = cross_product(triangles[0].b - triangles[0].a, triangles[0].c - triangles[0].a);
-        PointVector normal2 = cross_product(triangles[1].b - triangles[1].a, triangles[1].c - triangles[1].a);
-        normal1.normalizePoints();
-        normal2.normalizePoints();
-        if (abs((intersection_point - triangles[0].a) * normal1) < 1e-5)
-        {
-            incident_ray.direction * normal1 < 0 ? normal1 = normal1 * -1 : normal1 = normal1;
-            return Ray(intersection_point, normal1);
-        }
-        else
-        {
-            incident_ray.direction * normal2 < 0 ? normal2 = normal2 * -1 : normal2 = normal2;
-            return Ray(intersection_point, normal2);
-        }
+        PointVector normal = cross_product(b - a, c - a);
+        normal.normalizePoints();
+        
+        incident_ray.direction * normal < 0 ? normal = normal * -1 : normal = normal;
+        return Ray(intersection_point, normal);
     }
 
     virtual double find_intersection(Ray ray)
     {
-        double t1 = triangles[0].find_intersection(ray);
-        double t2 = triangles[1].find_intersection(ray);
-        if (t1 < 0 && t2 < 0)
+        PointVector normal = cross_product(b - a, c - a);
+        normal.normalizePoints();
+
+        double dotProduct = normal * ray.direction;
+        if(fabs(dotProduct) < 1e-5)
             return -1;
-        else if (t1 < 0)
-            return t2;
-        else if (t2 < 0)
-            return t1;
-        else
-            return min(t1, t2);
+        
+        double t = PointVector(a - ray.origin) * normal / dotProduct;
+        if(t < 0)
+            return -1;
+        
+        PointVector intersection_point = ray.origin + ray.direction * t;
+
+        PointVector ab = b - a;
+        PointVector ad = d - a;
+
+        PointVector ap = intersection_point - a;
+
+        double dot_ab_ap = ab * ap;
+        double dot_ab_ab = ab * ab;
+        double dot_ad_ap = ad * ap;
+        double dot_ad_ad = ad * ad;
+
+        if(dot_ab_ap < 0 || dot_ab_ap > dot_ab_ab || dot_ad_ap < 0 || dot_ad_ap > dot_ad_ad)
+            return -1;
+        
+        return t;
     }
 
 
@@ -1125,7 +1149,7 @@ class Pyramid : public Object
 {
 public:
     Triangle triangles[4];
-    Square square;
+    OptimizedSquare square;
 
 
     Pyramid()
@@ -1134,7 +1158,7 @@ public:
         triangles[1] = Triangle();
         triangles[2] = Triangle();
         triangles[3] = Triangle();
-        square = Square();
+        square = OptimizedSquare();
         type = PYRAMID;
     }
 
@@ -1159,7 +1183,7 @@ public:
         triangles[1] = Triangle(b, c, e, "pyramid");
         triangles[2] = Triangle(c, d, e, "pyramid");
         triangles[3] = Triangle(d, a, e, "pyramid");
-        square = Square(a, b, c, d, "pyramid");
+        square = OptimizedSquare(a, b, c, d, "pyramid");
     }
 
     void setColor(Color color)
@@ -1180,7 +1204,7 @@ public:
         {
             triangles[i].drawTriangle();
         }
-        square.drawSquare();
+        // square.drawSquare();
     }
 
     virtual void draw()
@@ -1194,7 +1218,7 @@ public:
         PointVector normal2 = triangles[1].get_normal(intersection_point, ray).direction;
         PointVector normal3 = triangles[2].get_normal(intersection_point, ray).direction;
         PointVector normal4 = triangles[3].get_normal(intersection_point, ray).direction;
-        PointVector normal5 = square.get_normal(intersection_point, ray).direction;
+        // PointVector normal5 = square.get_normal(intersection_point, ray).direction;
 
         if (abs((intersection_point - triangles[0].a) * normal1) < 1e-5)
         {
@@ -1218,8 +1242,9 @@ public:
         }
         else
         {
-            ray.direction * normal5 < 0 ? normal5 = normal5 * -1 : normal5 = normal5;
-            return Ray(intersection_point, normal5);
+            // ray.direction * normal5 < 0 ? normal5 = normal5 * -1 : normal5 = normal5;
+            // return Ray(intersection_point, normal5);
+            return Ray();
         }
     }
 
@@ -1230,7 +1255,7 @@ public:
         tValues[1] = triangles[1].find_intersection(ray);
         tValues[2] = triangles[2].find_intersection(ray);
         tValues[3] = triangles[3].find_intersection(ray);
-        tValues[4] = square.find_intersection(ray);
+        // tValues[4] = square.find_intersection(ray);
 
         double minT = -1;
         for (int i = 0; i < 5; i++)
@@ -1262,6 +1287,7 @@ public:
     PointVector points[8];
     PointVector bottom_lower_left;
     Triangle triangles[12];
+    OptimizedSquare squares[6];
 
     Cube()
     {
@@ -1281,6 +1307,16 @@ public:
         points[5] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2]);
         points[6] = PointVector(bottom_lower_left.point_vector[0] + side, bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2] + side);
         points[7] = PointVector(bottom_lower_left.point_vector[0], bottom_lower_left.point_vector[1] + side, bottom_lower_left.point_vector[2] + side);
+    }
+
+    void createSquares()
+    {
+        squares[0] = OptimizedSquare(points[0], points[1], points[2], points[3], "cube");
+        squares[1] = OptimizedSquare(points[0], points[1], points[5], points[4], "cube");
+        squares[2] = OptimizedSquare(points[1], points[2], points[6], points[5], "cube");
+        squares[3] = OptimizedSquare(points[2], points[3], points[7], points[6], "cube");
+        squares[4] = OptimizedSquare(points[3], points[0], points[4], points[7], "cube");
+        squares[5] = OptimizedSquare(points[4], points[5], points[6], points[7], "cube");
     }
 
     void createTriangles()
