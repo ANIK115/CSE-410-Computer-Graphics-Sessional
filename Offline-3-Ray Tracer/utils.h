@@ -255,30 +255,20 @@ public:
     }
     double determinant()
     {
+
         double det = 0.0;
-        if (dimension == 1)
-            return matrix[0][0];
-        else if (dimension == 2)
-            return matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
-        else
+        for(int i=0; i<dimension; i++)
         {
-            for (int i = 0; i < dimension; i++)
+            double v1 = 1.0, v2 = 1.0;
+            for(int j=0; j<dimension; j++)
             {
-                Matrix temp(dimension - 1);
-                for (int j = 1; j < dimension; j++)
-                {
-                    for (int k = 0; k < dimension; k++)
-                    {
-                        if (k < i)
-                            temp.matrix[j - 1][k] = matrix[j][k];
-                        else if (k > i)
-                            temp.matrix[j - 1][k - 1] = matrix[j][k];
-                    }
-                }
-                det += matrix[0][i] * pow(-1, i) * temp.determinant();
+                v1 *= matrix[(i+j)%dimension][j];
+                v2 *= matrix[(i+j)%dimension][dimension-j-1];
             }
-            return det;
+            det += v1 - v2;
         }
+        return det;
+
     }
 };
 
@@ -571,21 +561,37 @@ public:
 
             //scaling factor = exp(-falloff * distance^2)
             double distance = (intersection_point - ray.origin).magnitude();
-            double scaling_factor = exp(-point_lights[0]->falloff * distance * distance);
+            double scaling_factor = exp(-(point_lights[0]->falloff * distance * distance));
             Ray incidentLightRay = Ray(point_lights[i]->position, intersection_point - point_lights[i]->position);
             incidentLightRay.direction.normalizePoints();
 
-            if((intersection_point - incidentLightRay.origin).magnitude() < 1e-5)
+            if((intersection_point - incidentLightRay.origin).magnitude() <= 0)
             {
                 continue;
+            }
+
+            //check if the ray and the light ray are in the opposite direction
+            // Ray lineRay = Ray(ray.origin, point_lights[i]->position - ray.origin);
+
+            Ray lineRay = Ray(ray.origin, point_lights[i]->position - ray.origin);
+
+            double intersection_t = find_intersection(lineRay);
+
+            if(intersection_t > 0)
+            { 
+                double camera_lightSource_distance = (point_lights[i]->position - ray.origin).magnitude();
+                PointVector camera_object_intersection = ray.origin + ray.direction * intersection_t;
+                double camera_object_distance = (camera_object_intersection - ray.origin).magnitude();
+                if(camera_lightSource_distance > camera_object_distance)
+                    continue;
             }
 
             //checking if the point is in shadow
             bool isInShadow = false;
             for(int j=0; j<objects.size(); j++)
             {
-                double t = objects[j]->find_intersection(incidentLightRay);
-                if(t > 0 && t+ 1e-5 < (intersection_point - incidentLightRay.origin).magnitude())
+                double t1 = objects[j]->find_intersection(incidentLightRay);
+                if(t1 > 0 && t1+ 1e-5 < (intersection_point - incidentLightRay.origin).magnitude())
                 {
                     isInShadow = true;
                     break;
@@ -602,7 +608,11 @@ public:
             normal.direction.normalizePoints();
             incidentLightRay.direction.normalizePoints();
 
-            double lambert_value = max(0.0, normal.direction * incidentLightRay.direction);
+            if(this->type == FLOOR)
+            {
+                normal.direction = normal.direction * -1.0;
+            }
+            double lambert_value = max(0.0, -normal.direction * incidentLightRay.direction);
 
             //reflected ray
             Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
@@ -611,26 +621,16 @@ public:
 
             //diffuse color
             // Color diffuse_color = object_color * co_efficients[DIFFUSE] * point_lights[i]->color * lambert_value * scaling_factor;
-            diffuse_color += lambert_value * scaling_factor;
+            diffuse_color = lambert_value * scaling_factor;
 
-            // color = color+ diffuse_color;
-            // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
-
-            //specular color
-            double phong_value = max(0.0, reflectedRay.direction * ray.direction);
-            if(shininess == 0)
-                phong_value = phong_value;
-            else
-                phong_value = pow(phong_value, shininess);
+            double phong_value = max(0.0, -reflectedRay.direction * ray.direction);
+            
+            phong_value = pow(phong_value, shininess);
 
             // color = color + object_color* (point_lights[i]->color * co_efficients[2] * phong_value * scaling_factor);
-            specular_color += phong_value * scaling_factor; 
-
-        }
-
-        for(int i=0; i<point_lights.size(); i++)
-        {
+            specular_color = phong_value * scaling_factor; 
             color = color + object_color * point_lights[i]->color * (diffuse_color * co_efficients[DIFFUSE] + specular_color * co_efficients[SPECULAR]);
+
         }
 
         diffuse_color = 0;
@@ -652,10 +652,6 @@ public:
             //convert to degrees
             angle = angle * 180.0 / M_PI;
 
-            // cout << "Angle: " << angle << endl;
-
-            // if(incidentLightRay.direction * ray.direction < 1e-5)
-            //     continue;
 
             if(fabs(angle) < spot_lights[i]->cut_off_angle) {
 
@@ -669,11 +665,25 @@ public:
                     continue;
                 }
 
+                //check if the ray and the light ray are in the opposite direction
+                Ray lineRay = Ray(ray.origin, point_lights[i]->position - ray.origin);
+
+                double intersection_t = find_intersection(lineRay);
+
+                if(intersection_t > 0)
+                { 
+                    double camera_lightSource_distance = (point_lights[i]->position - ray.origin).magnitude();
+                    PointVector camera_object_intersection = ray.origin + ray.direction * intersection_t;
+                    double camera_object_distance = (camera_object_intersection - ray.origin).magnitude();
+                    if(camera_lightSource_distance > camera_object_distance)
+                        continue;
+                }
+
                 bool isInShadow = false;
                 for(int j=0; j<objects.size(); j++)
                 {
-                    double t = objects[j]->find_intersection(incidentLightRay);
-                    if(t > 0 && t+ 1e-5 < (intersection_point - incidentLightRay.origin).magnitude())
+                    double t1 = objects[j]->find_intersection(incidentLightRay);
+                    if(t1 > 0 && t1+ 1e-5 < (intersection_point - incidentLightRay.origin).magnitude())
                     {
                         isInShadow = true;
                         break;
@@ -685,12 +695,15 @@ public:
 
                 // cout << "Calculating color for spot light: " << i << endl;
                 //diffuse color
-                double lambert_value = max(0.0, normal.direction * incidentLightRay.direction); 
+                if(this->type == FLOOR)
+                {
+                    normal.direction = normal.direction * -1.0;
+                }
+                double lambert_value = max(0.0, -normal.direction * incidentLightRay.direction); 
                 // cout << "Lambert Value: " << lambert_value << endl;
 
-                // color = color + (object_color * co_efficients[DIFFUSE] * spot_lights[i]->color * lambert_value * scaling_factor);  
 
-                diffuse_color += lambert_value * scaling_factor;
+                diffuse_color = lambert_value * scaling_factor;
 
                 //reflected ray
                 Ray reflectedRay = Ray(intersection_point, incidentLightRay.direction - normal.direction * 2.0 * (incidentLightRay.direction * normal.direction));
@@ -698,7 +711,7 @@ public:
                 reflectedRay.direction.normalizePoints();
 
                 //specular color
-                double phong_value = max(0.0, reflectedRay.direction * ray.direction);
+                double phong_value = max(0.0, -reflectedRay.direction * ray.direction);
                 // cout << "Phong Value: " << phong_value << endl;
                 if(shininess == 0)
                     phong_value = phong_value;
@@ -706,16 +719,12 @@ public:
                     phong_value = pow(phong_value, shininess);
 
                 // color = color + object_color * (spot_lights[i]->color * co_efficients[SPECULAR] * phong_value * scaling_factor);
-                specular_color += phong_value * scaling_factor;
+                specular_color = phong_value * scaling_factor;
                 // cout << "Color: " << color.red << " " << color.green << " " << color.blue << endl;
+                color = color + object_color * spot_lights[i]->color * (diffuse_color * co_efficients[DIFFUSE] + specular_color * co_efficients[SPECULAR]);
             }
                
         }
-
-        for(int i=0; i<spot_lights.size(); i++)
-        {
-            color = color + object_color * spot_lights[i]->color * (diffuse_color * co_efficients[DIFFUSE] + specular_color * co_efficients[SPECULAR]);
-        } 
 
         // recursive reflection
 
@@ -727,10 +736,10 @@ public:
             reflectedRay.origin = reflectedRay.origin + reflectedRay.direction * 1e-5;
 
             int nearest = -1;
-            double min_t = 1e15;
+            double min_t = 1e9, t=-1;
             for(int i=0; i<objects.size(); i++)
             {
-                double t = objects[i]->find_intersection(reflectedRay);
+                t = objects[i]->find_intersection(reflectedRay);
                 if(t > 0 && t < min_t)
                 {
                     min_t = t;
@@ -792,16 +801,13 @@ public:
 
     virtual void draw()
     {
-        number_of_tiles = 100;
+        number_of_tiles = 60;
         diffX = (new_reference_point.point_vector[0] - reference_point.point_vector[0]) / width;
         diffY = (new_reference_point.point_vector[1] - reference_point.point_vector[1]) / width;
 
-        cout << "DiffX: " << diffX << endl;
-        cout << "DiffY: " << diffY << endl;
+        startX = reference_point.point_vector[0]-(number_of_tiles/2)*width ;
         
-        startX = reference_point.point_vector[0]-50*width ;
-        
-        startY = reference_point.point_vector[1]-50*width ;
+        startY = reference_point.point_vector[1]-(number_of_tiles/2)*width ;
 
         if(diffX %2 == 0)
         {
@@ -819,8 +825,6 @@ public:
             startY += (diffY-1) * width;
         }
 
-        cout << "StartX: " << startX << endl;
-        cout << "StartY: " << startY << endl;
         for(int i=0; i<number_of_tiles; i++)
         {
             for(int j=0; j<number_of_tiles; j++)
@@ -853,9 +857,16 @@ public:
         ray.direction.normalizePoints();
         double dotProduct = normal * ray.direction;
 
-        if(round(dotProduct * 1000) == 0)
+        if(round(dotProduct * 100) == 0)
             return -1;
-        double t = -(normal * ray.origin) / dotProduct;        
+        double t = -(normal * ray.origin) / dotProduct;    
+
+        PointVector intersection_point = ray.origin + ray.direction * t + ray.direction * 2e-5;
+
+        if(intersection_point.point_vector[0] <= startX || intersection_point.point_vector[0] >= startX + number_of_tiles * width)
+            return -1;
+        if(intersection_point.point_vector[1] <= startY || intersection_point.point_vector[1] >= startY + number_of_tiles * width)
+            return -1;    
         return t;
     }
 
@@ -949,7 +960,7 @@ public:
         double b = 2.0 * (ray.direction * (ray.origin - reference_point));
         double c = (ray.origin - reference_point) * (ray.origin - reference_point) - length * length;
         double d = b * b - 4 * a * c;
-        if (d < 0)
+        if (d <= 0)
             return -1;
         else
         {
@@ -975,9 +986,14 @@ public:
     {
         in >> s.reference_point >> s.length; // center and radius
         in >> s.color.red >> s.color.green >> s.color.blue; // color
-        for(int i = 0; i < 4; i++) in >> s.co_efficients[i];
+        in >> s.co_efficients[AMBIENT] >> s.co_efficients[DIFFUSE] >> s.co_efficients[SPECULAR] >> s.co_efficients[REFLECTION]; // co-efficients
         in >> s.shininess;
         return in;
+    }
+
+    virtual Color getColor(PointVector intersection_point)
+    {
+        return color;
     }
 
 };
@@ -1133,7 +1149,7 @@ public:
         PointVector normal = cross_product(b - a, c - a);
         normal.normalizePoints();
         
-        incident_ray.direction * normal < 0 ? normal = normal * -1 : normal = normal;
+        // incident_ray.direction * normal < 0 ? normal = normal * -1 : normal = normal;
         return Ray(intersection_point, normal);
     }
 

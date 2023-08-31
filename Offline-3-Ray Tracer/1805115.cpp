@@ -138,8 +138,9 @@ void cross_product(point &u, point &l, point &r)
 
 void capture()
 {
+    int division = imageSize/10;
     double t, t_min;
-    int nearestObjectIndex;
+    int nearestObjectIndex = -1;
     for(int i=0; i<imageSize; i++)
     {
         for(int j=0; j<imageSize; j++)
@@ -167,7 +168,7 @@ void capture()
             Ray ray(camera_position, pixel-camera_position);
             ray.direction.normalizePoints();
             Color color;
-            t_min = -1;
+            t_min = INT_MAX;
             nearestObjectIndex = -1;
 
             for(int k=0; k<objects.size(); k++)
@@ -199,9 +200,16 @@ void capture()
             }
 
         }
+        if(i%division == 0)
+        {
+            int percent = ceil(((i+1)*100.0)/imageSize);
+            if(percent%10 != 0)
+                percent = percent - percent%10;
+            cout << "Rendering " << imageCount+1 << ": " << percent << " % " << "completed" << endl;
+        }
     }
     imageCount++;
-    image.save_image("output_"+to_string(imageCount)+".bmp");
+    image.save_image("out_"+to_string(imageCount)+".bmp");
     cout << "Image saved" << endl;
 
 }
@@ -442,6 +450,17 @@ void loadData()
                 square->setShininess(shininess);
                 objects.push_back(square);
             }
+
+            // cube->createTriangles();
+
+            // for(int k=0; k<12; k++)
+            // {
+            //     Object *triangle = new Triangle(cube->triangles[k]);
+            //     triangle->setColor(color);
+            //     triangle->setCoEfficients(co_efficients);
+            //     triangle->setShininess(shininess);
+            //     objects.push_back(triangle);
+            // }
             
         }
         else
@@ -462,10 +481,8 @@ void loadData()
         PointLight *pointLight = new PointLight();
         in >> *pointLight;
         point_lights.push_back(pointLight);
-        cout << "Point Light Color: " << pointLight->color.red << ", " << pointLight->color.green << ", " << pointLight->color.blue << endl;
     }
 
-    cout << "Number of point lights: " << point_lights.size() << endl;
 
     int numberOfspot_lights;
     in >> numberOfspot_lights;
@@ -474,7 +491,6 @@ void loadData()
         SpotLight *spotLight = new SpotLight();
         in >> *spotLight;
         spot_lights.push_back(spotLight);
-        cout << "Spot Light Color: " << spotLight->color.red << ", " << spotLight->color.green << ", " << spotLight->color.blue << endl;
     }
 
 }
