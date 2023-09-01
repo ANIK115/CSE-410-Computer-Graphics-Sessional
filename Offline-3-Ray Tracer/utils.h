@@ -913,21 +913,21 @@ public:
         
         if((x+y)%2 == 0)
         {
-            int pixelX = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_w.width());
-            int pixelY = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_w.height());
-            // cout << "White Pixel: " << pixelX << " " << pixelY << endl;
+            int texture_pixel_x = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_w.width());
+            int texture_pixel_y = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_w.height());
+            // cout << "White Pixel: " << texture_pixel_x << " " << texture_pixel_y << endl;
             unsigned char r, g, b;
-            texture_w.get_pixel(pixelX, pixelY, r, g, b);
+            texture_w.get_pixel(texture_pixel_x, texture_pixel_y, r, g, b);
             return Color(r/255.0, g/255.0, b/255.0);
         }
         else
         {
 
-            int pixelX = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_b.width());
-            int pixelY = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_b.height());
-            // cout << "Black Pixel: " << pixelX << " " << pixelY << endl;
+            int texture_pixel_x = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_b.width());
+            int texture_pixel_y = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_b.height());
+            // cout << "Black Pixel: " << texture_pixel_x << " " << texture_pixel_y << endl;
             unsigned char r, g, b;
-            texture_b.get_pixel(pixelX, pixelY, r, g, b);
+            texture_b.get_pixel(texture_pixel_x, texture_pixel_y, r, g, b);
             return Color(r/255.0, g/255.0, b/255.0);
         }
     }
