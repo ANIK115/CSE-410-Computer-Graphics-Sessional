@@ -167,7 +167,7 @@ void capture()
             PointVector pixel(currentPixel.x, currentPixel.y, currentPixel.z);
             Ray ray(camera_position, pixel-camera_position);
             ray.direction.normalizePoints();
-            Color color;
+            Color color(0,0,0);
             t_min = INT_MAX;
             nearestObjectIndex = -1;
 
@@ -183,18 +183,12 @@ void capture()
 
             if(nearestObjectIndex != -1)
             {
-                color = Color(0, 0, 0);
 
                 double t = objects[nearestObjectIndex]->intersect(ray, color, depthOfRecursion);
                 
-
-                if(color.red > 1) color.red = 1;
-                if(color.green > 1) color.green = 1;
-                if(color.blue > 1) color.blue = 1;
-
-                if(color.red < 0) color.red = 0;
-                if(color.green < 0) color.green = 0;
-                if(color.blue < 0) color.blue = 0;
+                color.red > 1 ? color.red = 1 : color.red < 0 ? color.red = 0 : color.red = color.red;
+                color.green > 1 ? color.green = 1 : color.green < 0 ? color.green = 0 : color.green = color.green;
+                color.blue > 1 ? color.blue = 1 : color.blue < 0 ? color.blue = 0 : color.blue = color.blue;
 
                 image.set_pixel(i, j, color.red*255, color.green*255, color.blue*255);
             }
@@ -354,7 +348,7 @@ void specialKeyListener(int key, int x,int y)
 
 void loadData()
 {
-    ifstream in("scene.txt");
+    ifstream in("description.txt");
     in >> nearDistance >> farDistance >> fovY >> aspectRatio;
     fovX = fovY * aspectRatio;
 

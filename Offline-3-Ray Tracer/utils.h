@@ -427,7 +427,6 @@ public:
         glRotatef(-angleZ*180.0/M_PI, 0.0, 0.0, 1.0);
 
         glColor3f(color.red, color.green, color.blue);
-        cout << "Color of Spot Light: " << color.red << " " << color.green << " " << color.blue << endl;
         //set size of the solid cone
         drawCone(25, 10, 20, color);
         glPopMatrix();
@@ -1230,8 +1229,6 @@ public:
 
     void setColor(Color color)
     {
-        cout << "Setting color" << endl;
-        cout << color.red << " " << color.green << " " << color.blue << endl;
         for (int i = 0; i < 4; i++)
         {
             triangles[i].setColor(color);
