@@ -21,11 +21,12 @@ int depthOfRecursion;
 int imageSize, imageCount=0 ;
 double screenWidth, screenHeight;
 bitmap_image image;
+bitmap_image texture_b, texture_w;
 
 vector<Object*> objects;
 vector<PointLight*> point_lights;
 vector<SpotLight*> spot_lights;
-
+bool textureMode = false;
 
 /*Used from demo code that was provided in moodle*/
 /* Draw axes: X in Red, Y in Green and Z in Blue */
@@ -38,18 +39,18 @@ void drawAxes()
     glBegin(GL_LINES);
     glColor3f(1, 0, 0); // Red
     // X axis
-    glVertex3f(100, 0, 0);
-    glVertex3f(-100, 0, 0);
+    glVertex3f(1000, 0, 0);
+    glVertex3f(-1000, 0, 0);
 
     glColor3f(0, 1, 0); // Green
     // Y axis
-    glVertex3f(0, -100, 0);
-    glVertex3f(0, 100, 0);
+    glVertex3f(0, -1000, 0);
+    glVertex3f(0, 1000, 0);
 
     glColor3f(0, 0, 1); // Blue
     // Z axis
-    glVertex3f(0, 0, 100);
-    glVertex3f(0, 0, -100);
+    glVertex3f(0, 0, 1000);
+    glVertex3f(0, 0, -1000);
     glEnd();
 }
 
@@ -81,6 +82,10 @@ void display()
     for(int i=0; i<objects.size(); i++)
     {
         //to handle infinite floor
+        if(objects[i]->getType() == FLOOR && textureMode)
+        {
+            continue;
+        }
         if(objects[i]->getType()==FLOOR)
         {
             Floor *floor = (Floor*)objects[i];
@@ -203,7 +208,7 @@ void capture()
         }
     }
     imageCount++;
-    image.save_image("out_"+to_string(imageCount)+".bmp");
+    image.save_image("out"+to_string(imageCount)+".bmp");
     cout << "Image saved" << endl;
 
 }
@@ -285,6 +290,10 @@ void keyboardListener(unsigned char key, int xx,int yy){
             rotation_angle = rotation_angle% 360;          
             break;
             
+            break;
+        //case spacebar
+        case 32:
+            textureMode = !textureMode;
             break;
 		default:
 			break;
@@ -464,6 +473,8 @@ void loadData()
         
         
     }
+
+    
     
     objects.push_back(floor);
 
@@ -486,6 +497,9 @@ void loadData()
         in >> *spotLight;
         spot_lights.push_back(spotLight);
     }
+
+    //load textures
+
 
 }
 void initialization()

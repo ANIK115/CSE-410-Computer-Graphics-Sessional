@@ -478,6 +478,8 @@ extern int depthOfRecursion;
 extern vector <PointLight*> point_lights;
 extern vector <Object*> objects;
 extern vector <SpotLight*> spot_lights;
+extern bool textureMode;
+
 class Object
 {
 public:
@@ -770,12 +772,15 @@ public:
     int number_of_tiles, number_of_tiles_in_X, number_of_tiles_in_Z, number_of_tiles_in_Y;
     int startX, finishX, startZ, finishZ, diffX, diffZ, startY, finishY, diffY;
     PointVector new_reference_point;
+    bitmap_image texture_b, texture_w;
+        
     Floor()
     {
         number_of_tiles = 100;
         type = FLOOR;
         number_of_tiles_in_X = number_of_tiles_in_Z = number_of_tiles_in_Y = 100;
         diffX = diffZ = diffY = 0;
+        setTexture("texture_b.bmp", "texture_w.bmp");
     }
 
     Floor(int shellWidth, PointVector reference_point)
@@ -785,6 +790,13 @@ public:
         number_of_tiles = number_of_tiles_in_X = number_of_tiles_in_Z = number_of_tiles_in_Y = 100;
         type = FLOOR;
         diffX = diffZ = diffY = 0;
+        setTexture("texture_b.bmp", "texture_w.bmp");
+    }
+
+    void setTexture(string texture_b, string texture_w)
+    {
+        this->texture_b = bitmap_image(texture_b);
+        this->texture_w = bitmap_image(texture_w);
     }
 
     void setReferencePoint(PointVector reference_point)
@@ -886,11 +898,38 @@ public:
     {
         int x = (intersection_point.point_vector[0]- startX) / width;
         int y = (intersection_point.point_vector[1]- startY) / width;
+
+        if(!textureMode)
+        {
+            if((x+y)%2 == 0)
+            {
+                return Color(1.0, 1.0, 1.0);
+            }
+            else
+            {
+                return Color(0.0, 0.0, 0.0);
+            }
+        }
         
         if((x+y)%2 == 0)
-            return Color(1.0, 1.0, 1.0);
+        {
+            int pixelX = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_w.width());
+            int pixelY = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_w.height());
+            // cout << "White Pixel: " << pixelX << " " << pixelY << endl;
+            unsigned char r, g, b;
+            texture_w.get_pixel(pixelX, pixelY, r, g, b);
+            return Color(r/255.0, g/255.0, b/255.0);
+        }
         else
-            return Color(0.0, 0.0, 0.0);
+        {
+
+            int pixelX = int(((intersection_point.point_vector[0] - startX) - x * width) / width * texture_b.width());
+            int pixelY = int(((intersection_point.point_vector[1] - startY) - y * width) / width * texture_b.height());
+            // cout << "Black Pixel: " << pixelX << " " << pixelY << endl;
+            unsigned char r, g, b;
+            texture_b.get_pixel(pixelX, pixelY, r, g, b);
+            return Color(r/255.0, g/255.0, b/255.0);
+        }
     }
 };
 
